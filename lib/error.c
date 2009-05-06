@@ -85,6 +85,7 @@ int nl_syserr2nlerr(int error)
 	case EADDRINUSE:	return NLE_EXIST;
 	case EEXIST:		return NLE_EXIST;
 	case EADDRNOTAVAIL:	return NLE_NOADDR;
+	case ENODEV:
 	case ENOENT:		return NLE_OBJ_NOTFOUND;
 	case EINTR:		return NLE_INTR;
 	case EAGAIN:		return NLE_AGAIN;
