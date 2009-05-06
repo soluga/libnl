@@ -31,6 +31,7 @@ install:
 	mkdir -p $(DESTDIR)$(includedir)/netlink/genl/
 	mkdir -p $(DESTDIR)$(includedir)/netlink/fib_lookup/
 	mkdir -p $(DESTDIR)$(includedir)/netlink/netfilter
+	mkdir -p $(DESTDIR)$(includedir)/netlink/dect
 	install -m 0644 netlink/*.h $(DESTDIR)$(includedir)/netlink/
 	install -m 0644 netlink/route/*.h $(DESTDIR)$(includedir)/netlink/route/
 	install -m 0644 netlink/route/sch/*.h $(DESTDIR)$(includedir)/netlink/route/sch/
@@ -39,4 +40,4 @@ install:
 	install -m 0644 netlink/genl/*.h $(DESTDIR)$(includedir)/netlink/genl/
 	install -m 0644 netlink/fib_lookup/*.h $(DESTDIR)$(includedir)/netlink/fib_lookup/
 	install -m 0644 netlink/netfilter/*.h $(DESTDIR)$(includedir)/netlink/netfilter/
-
+	install -m 0644 netlink/dect/*.h $(DESTDIR)$(includedir)/netlink/dect

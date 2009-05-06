@@ -799,4 +799,102 @@ struct nfnl_queue_msg {
 	uint32_t		queue_msg_verdict;
 };
 
+struct nl_dect_transceiver_slot {
+	uint8_t			dts_valid;
+	uint8_t			dts_state;
+	uint8_t			dts_carrier;
+	uint8_t			dts_rssi;
+	uint32_t		dts_frequency;
+	uint32_t		dts_rx_bytes;
+	uint32_t		dts_rx_packets;
+	uint32_t		dts_tx_bytes;
+	uint32_t		dts_tx_packets;
+};
+
+struct nl_dect_transceiver_stats {
+	uint32_t		trx_event_busy;
+	uint32_t		trx_event_late;
+};
+
+struct nl_dect_transceiver {
+	NLHDR_COMMON
+
+	char					*trx_name;
+	char					*trx_type;
+	uint8_t					trx_index;
+	uint8_t					trx_link;
+	uint8_t					trx_band;
+	struct nl_dect_transceiver_stats	trx_stats;
+	struct nl_dect_transceiver_slot		trx_slots[24];
+};
+
+struct nl_dect_ari {
+	uint32_t		ari_flags;
+
+	uint8_t			ari_class;
+	uint32_t		ari_fpn;
+	uint32_t		ari_fps;
+	union {
+		uint16_t	emc;
+		uint16_t	eic;
+		uint16_t	poc;
+		uint32_t	gop;
+		uint16_t	fil;
+	} ari_u;
+};
+
+struct nl_dect_cluster {
+	NLHDR_COMMON
+
+	int			cl_index;
+	char			*cl_name;
+	uint8_t			cl_mode;
+	struct nl_dect_ari	cl_pari;
+	uint8_t			cells[8];
+};
+
+struct nl_dect_cell {
+	NLHDR_COMMON
+
+	int			c_index;
+	char *			c_name;
+	uint32_t		c_flags;
+	char			*c_transceiver[16];
+	int			c_link;
+};
+
+struct nl_dect_llme_mac_info {
+	NLHDR_COMMON
+
+	struct nl_dect_ari	mi_pari;
+	uint8_t			mi_rpn;
+	uint8_t			mi_rssi;
+	uint32_t		mi_fpc;
+	uint16_t		mi_hlc;
+	uint16_t		mi_ehlc;
+};
+
+struct nl_dect_llme_mac_con {
+	NLHDR_COMMON
+
+	uint32_t		mc_mcei;
+	struct nl_dect_ari	mc_ari;
+	uint32_t		mc_pmid;
+	uint8_t			mc_type;
+	uint8_t			mc_ecn;
+	uint8_t			mc_service;
+};
+
+struct nl_dect_llme_msg {
+	NLHDR_COMMON
+
+	int			lm_index;
+	uint8_t			lm_type;
+	uint8_t			lm_op;
+	union {
+		struct nl_dect_llme_mac_info	lm_mi;
+		struct nl_dect_llme_mac_con	lm_mc;
+	};
+};
+
 #endif

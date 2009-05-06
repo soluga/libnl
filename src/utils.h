@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <ctype.h>
 #include <getopt.h>
+#include <limits.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -42,6 +43,11 @@
 #include <netlink/genl/ctrl.h>
 #include <netlink/genl/mngt.h>
 #include <netlink/netfilter/ct.h>
+#include <netlink/dect/transceiver.h>
+#include <netlink/dect/cell.h>
+#include <netlink/dect/cluster.h>
+#include <netlink/dect/llme.h>
+#include <netlink/dect/ari.h>
 
 extern uint32_t parse_u32(const char *);
 

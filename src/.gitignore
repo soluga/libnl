@@ -29,3 +29,12 @@ nl-rule-list
 nl-tctree-list
 nl-util-addr
 nf-queue
+dect-transceiver-list
+dect-transceiver-bind
+dect-cell-add
+dect-cell-delete
+dect-cell-list
+dect-cluster-add
+dect-cluster-delete
+dect-cluster-list
+dect-llme-scan

@@ -29,7 +29,10 @@ GENL_OBJ  := $(GENL_C:%.c=%.o)
 NF_C    := $(wildcard netfilter/*.c)
 NF_OBJ    := $(NF_C:%.c=%.o)
 
-ALL_C     := $(CORE_C) $(ROUTE_C) $(GENL_C) $(NF_C)
+DECT_C    := $(wildcard dect/*.c)
+DECT_OBJ  := $(DECT_C:%.c=%.o)
+
+ALL_C     := $(CORE_C) $(ROUTE_C) $(GENL_C) $(NF_C) $(DECT_C)
 ALL_OBJ   := $(ALL_C:%.c=%.o)
 DEPS      := $(ALL_C:%.c=%.d)
 
@@ -39,7 +42,8 @@ CORE_LIB  := $(PACKAGE_NAME).so
 ROUTE_LIB := $(PACKAGE_NAME)-route.so
 GENL_LIB  := $(PACKAGE_NAME)-genl.so
 NF_LIB    := $(PACKAGE_NAME)-nf.so
-LIBS      := $(CORE_LIB) $(ROUTE_LIB) $(GENL_LIB) $(NF_LIB)
+DECT_LIB  := $(PACKAGE_NAME)-dect.so
+LIBS      := $(CORE_LIB) $(ROUTE_LIB) $(GENL_LIB) $(NF_LIB) $(DECT_LIB)
 LIBS_V    := $(LIBS:%.so=%.so.$(PACKAGE_VERSION))
 
 export
@@ -82,6 +86,14 @@ $(NF_LIB): $(NF_LIB).$(PACKAGE_VERSION)
 	@echo "  LN $@ -> $<"; \
 	$(RM) -f $@; $(LN) $< -s $@
 
+$(DECT_LIB).$(PACKAGE_VERSION): $(DECT_OBJ)
+	@echo "  LD $@"; \
+	$(CC) -shared -Wl,-soname=$@ -o $@ $^ $(LIBNL_LIB) -lnl
+
+$(DECT_LIB): $(DECT_LIB).$(PACKAGE_VERSION)
+	@echo "  LN $@ -> $<"; \
+	$(RM) -f $@; $(LN) $< -s $@
+
 clean:
 	@echo "  CLEAN lib"; \
 	$(RM) -f $(ALL_OBJ) $(LIBS) $(DEPS) *.so.*
@@ -97,6 +109,7 @@ install:
 	$(LN) -sf $(ROUTE_LIB:%.so=%.so.$(PACKAGE_VERSION)) $(DESTDIR)$(libdir)/$(ROUTE_LIB)
 	$(LN) -sf $(GENL_LIB:%.so=%.so.$(PACKAGE_VERSION)) $(DESTDIR)$(libdir)/$(GENL_LIB)
 	$(LN) -sf $(NF_LIB:%.so=%.so.$(PACKAGE_VERSION)) $(DESTDIR)$(libdir)/$(NF_LIB)
+	$(LN) -sf $(DECT_LIB:%.so=%.so.$(PACKAGE_VERSION)) $(DESTDIR)$(libdir)/$(DECT_LIB)
 
 $(DEPS): ../Makefile.opts
 

@@ -14,7 +14,7 @@ ifeq ($(shell [ ! -r ../Makefile.opts ] && echo 1),)
 endif
 
 LDFLAGS	+= -L../lib -lnl
-CIN 	:= $(wildcard nl-*.c) $(wildcard genl-*.c) $(wildcard nf-*.c)
+CIN 	:= $(wildcard nl-*.c) $(wildcard genl-*.c) $(wildcard nf-*.c) $(wildcard dect-*.c)
 TOOLS	:= $(CIN:%.c=%)
 
 all: $(TOOLS)
@@ -49,6 +49,10 @@ genl-%: genl-%.o
 nf-%: nf-%.o
 	@echo "  LD $@"; \
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) -lnl-nf -lnl-route
+
+dect-%: dect-%.c
+	@echo "  LD $@"; \
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) -lnl-dect
 
 clean:
 	@echo "  CLEAN src"; \
