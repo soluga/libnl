@@ -214,7 +214,7 @@ static void nl_dect_llme_mac_info_dump(const struct nl_dect_llme_msg *lmsg,
 		nl_dump(p, " signal level: %.2fdBm", nl_dect_rssi_to_dbm(mi->mi_rssi));
 	if (lmsg->ce_mask & MAC_INFO_ATTR_FPC) {
 		nl_dect_llme_fpc2str(mi->mi_fpc, buf, sizeof(buf));
-		nl_dump(p, "\n\tCapabilities: %s", buf);
+		nl_dump(p, "\n\tMAC layer capabilities: %s", buf);
 	}
 	if (lmsg->ce_mask & MAC_INFO_ATTR_HLC) {
 		nl_dect_llme_hlc2str(mi->mi_hlc, buf, sizeof(buf));
