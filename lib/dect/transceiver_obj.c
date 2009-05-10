@@ -39,12 +39,22 @@ static void transceiver_free_data(struct nl_object *obj)
 static void slot_dump(struct nl_dect_transceiver_slot *dts, unsigned int n,
 		      struct nl_dump_params *p)
 {
+	int64_t offset;
 	char buf[64];
 
-	nl_dump(p, "\tslot %u: <%s> carrier: %u (%u.%3u MHz)", n,
-		nl_dect_slot_state2str(dts->dts_state, buf, sizeof(buf)),
-		dts->dts_carrier,
+	nl_dect_slot_state2str(dts->dts_state, buf, sizeof(buf));
+	nl_dump(p, "\tslot %u: <%s> ", n, buf);
+	nl_dump(p, "carrier: %u (%u.%03u MHz", dts->dts_carrier,
 		dts->dts_frequency / 1000, dts->dts_frequency % 1000);
+
+	if (dts->dts_state == DECT_SLOT_RX) {
+		offset = (int64_t)dts->dts_frequency * dts->dts_phaseoff /
+			 DECT_PHASE_OFFSET_SCALE;
+		nl_dump(p, " %+" PRId64 ".%03" PRIu64 " kHz",
+			offset / 1000000, llabs(offset) % 1000000 / 1000);
+	}
+	nl_dump(p, ")");
+
 	if (dts->dts_state == DECT_SLOT_RX)
 		nl_dump(p, " signal level: %.2fdBm",
 			nl_dect_rssi_to_dbm(dts->dts_rssi));

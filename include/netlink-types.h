@@ -805,6 +805,7 @@ struct nl_dect_transceiver_slot {
 	uint8_t			dts_carrier;
 	uint8_t			dts_rssi;
 	uint32_t		dts_frequency;
+	int32_t			dts_phaseoff;
 	uint32_t		dts_rx_bytes;
 	uint32_t		dts_rx_packets;
 	uint32_t		dts_tx_bytes;
