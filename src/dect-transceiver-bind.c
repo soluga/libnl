@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
 
 	err = nl_dect_transceiver_change(sock, trx, 0);
 	if (err < 0)
-		fatal(err, "Unable to bind cell: %s", nl_geterror(err));
+		fatal(err, "Unable to bind to cell: %s", nl_geterror(err));
 
 	printf("Bound: ");
 	nl_object_dump(OBJ_CAST(trx), &params);
