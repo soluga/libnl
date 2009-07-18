@@ -50,6 +50,7 @@ static struct nla_policy slot_policy[DECTA_SLOT_MAX + 1] = {
 	[DECTA_SLOT_RSSI]		= { .type = NLA_U8 },
 	[DECTA_SLOT_RX_BYTES]		= { .type = NLA_U32 },
 	[DECTA_SLOT_RX_PACKETS]		= { .type = NLA_U32 },
+	[DECTA_SLOT_RX_A_CRC_ERRORS]	= { .type = NLA_U32 },
 	[DECTA_SLOT_TX_BYTES]		= { .type = NLA_U32 },
 	[DECTA_SLOT_TX_PACKETS]		= { .type = NLA_U32 },
 };
@@ -85,6 +86,8 @@ static int slot_parser(struct nl_dect_transceiver *trx, struct nlattr *nla)
 		dts->dts_rx_bytes = nla_get_u32(tb[DECTA_SLOT_RX_BYTES]);
 	if (tb[DECTA_SLOT_RX_PACKETS] != NULL)
 		dts->dts_rx_packets = nla_get_u32(tb[DECTA_SLOT_RX_PACKETS]);
+	if (tb[DECTA_SLOT_RX_A_CRC_ERRORS] != NULL)
+		dts->dts_rx_a_crc_errors = nla_get_u32(tb[DECTA_SLOT_RX_A_CRC_ERRORS]);
 	if (tb[DECTA_SLOT_TX_BYTES] != NULL)
 		dts->dts_tx_bytes = nla_get_u32(tb[DECTA_SLOT_TX_BYTES]);
 	if (tb[DECTA_SLOT_TX_PACKETS] != NULL)

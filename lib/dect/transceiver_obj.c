@@ -60,8 +60,8 @@ static void slot_dump(struct nl_dect_transceiver_slot *dts, unsigned int n,
 			nl_dect_rssi_to_dbm(dts->dts_rssi));
 	nl_dump(p, "\n");
 
-	nl_dump(p, "\t    RX: bytes %u packets %u\n",
-		dts->dts_rx_bytes, dts->dts_rx_packets);
+	nl_dump(p, "\t    RX: bytes %u packets %u crc-errors %u\n",
+		dts->dts_rx_bytes, dts->dts_rx_packets, dts->dts_rx_a_crc_errors);
 	nl_dump(p, "\t    TX: bytes %u packets %u\n",
 		dts->dts_tx_bytes, dts->dts_tx_packets);
 }
@@ -91,10 +91,9 @@ static void transceiver_dump(struct nl_object *obj, struct nl_dump_params *p)
 	nl_dump(p, ":\n");
 	if (trx->trx_type != NULL)
 		nl_dump_line(p, "\tType: %s\n", trx->trx_type);
-
+	nl_dump(p, "\tRF-band: %u\n", trx->trx_band);
 	nl_dump(p, "\tEvents: busy: %u late: %u\n",
 		stats->trx_event_busy, stats->trx_event_late);
-	nl_dump(p, "\tRF-band: %u\n", trx->trx_band);
 
 	nl_dump(p, "\n");
 	for (n = 0; n < 24; n++) {
