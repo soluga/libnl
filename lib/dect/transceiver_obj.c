@@ -91,7 +91,7 @@ static void transceiver_dump(struct nl_object *obj, struct nl_dump_params *p)
 	nl_dump(p, ":\n");
 	if (trx->trx_type != NULL)
 		nl_dump_line(p, "\tType: %s\n", trx->trx_type);
-	nl_dump(p, "\tRF-band: %u\n", trx->trx_band);
+	nl_dump(p, "\tRF-band: %.5u\n", trx->trx_band);
 	nl_dump(p, "\tEvents: busy: %u late: %u\n",
 		stats->trx_event_busy, stats->trx_event_late);
 
