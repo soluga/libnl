@@ -60,8 +60,10 @@ static void slot_dump(struct nl_dect_transceiver_slot *dts, unsigned int n,
 			nl_dect_rssi_to_dbm(dts->dts_rssi));
 	nl_dump(p, "\n");
 
-	nl_dump(p, "\t    RX: bytes %u packets %u crc-errors %u\n",
-		dts->dts_rx_bytes, dts->dts_rx_packets, dts->dts_rx_a_crc_errors);
+	nl_dump(p, "\t    RX: bytes %u packets %u a-crc-errors %u x-crc-errors %u\n",
+		dts->dts_rx_bytes, dts->dts_rx_packets,
+		dts->dts_rx_a_crc_errors,
+		dts->dts_rx_x_crc_errors);
 	nl_dump(p, "\t    TX: bytes %u packets %u\n",
 		dts->dts_tx_bytes, dts->dts_tx_packets);
 }
