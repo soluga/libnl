@@ -43,7 +43,12 @@ static void slot_dump(struct nl_dect_transceiver_slot *dts, unsigned int n,
 	char buf[64];
 
 	nl_dect_slot_state2str(dts->dts_state, buf, sizeof(buf));
-	nl_dump(p, "\tslot %u: <%s> ", n, buf);
+	nl_dump(p, "\tslot %u: <%s", n, buf);
+	if (dts->dts_flags) {
+		nl_dect_slot_flags2str(dts->dts_flags, buf, sizeof(buf));
+		nl_dump(p, ",%s", buf);
+	}
+	nl_dump(p, "> ");
 	nl_dump(p, "carrier: %u (%u.%03u MHz", dts->dts_carrier,
 		dts->dts_frequency / 1000, dts->dts_frequency % 1000);
 
@@ -194,13 +199,6 @@ void nl_dect_transceiver_set_link(struct nl_dect_transceiver *trx, uint8_t link)
 	trx->ce_mask |= TRANSCEIVER_ATTR_LINK;
 }
 
-static struct trans_tbl slot_states[] = {
-	__ADD(DECT_SLOT_IDLE,		idle)
-	__ADD(DECT_SLOT_SCANNING,	scanning)
-	__ADD(DECT_SLOT_RX,		rx)
-	__ADD(DECT_SLOT_TX,		tx)
-};
-
 void nl_dect_transceiver_set_band(struct nl_dect_transceiver *trx, uint8_t band)
 {
 	trx->trx_band = band;
@@ -217,7 +215,14 @@ uint8_t nl_dect_transceiver_get_band(const struct nl_dect_transceiver *trx)
 	return trx->trx_band;
 }
 
-char *nl_dect_slot_state2str(uint8_t state, char *buf, size_t len)
+static struct trans_tbl slot_states[] = {
+	__ADD(DECT_SLOT_IDLE,		idle)
+	__ADD(DECT_SLOT_SCANNING,	scanning)
+	__ADD(DECT_SLOT_RX,		rx)
+	__ADD(DECT_SLOT_TX,		tx)
+};
+
+const char *nl_dect_slot_state2str(uint8_t state, char *buf, size_t len)
 {
 	return __type2str(state, buf, len, slot_states,
 			  ARRAY_SIZE(slot_states));
@@ -226,6 +231,20 @@ char *nl_dect_slot_state2str(uint8_t state, char *buf, size_t len)
 uint8_t nl_dect_slot_str2state(const char *str)
 {
 	return __str2type(str, slot_states, ARRAY_SIZE(slot_states));
+}
+
+static struct trans_tbl slot_flags[] = {
+	__ADD(DECT_SLOT_CIPHER,		cipher)
+};
+
+const char *nl_dect_slot_flags2str(uint32_t state, char *buf, size_t len)
+{
+	return __flags2str(state, buf, len, slot_flags, ARRAY_SIZE(slot_flags));
+}
+
+uint32_t nl_dect_slot_str2flags(const char *str)
+{
+	return __str2flags(str, slot_flags, ARRAY_SIZE(slot_flags));
 }
 
 int nl_dect_transceiver_build_msg(struct nl_msg *msg, struct nl_dect_transceiver *trx)
