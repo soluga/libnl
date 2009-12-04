@@ -204,6 +204,7 @@ nla_put_failure:
 
 static struct trans_tbl cell_flags[] = {
 	__ADD(DECT_CELL_CCP,	ccp)
+	__ADD(DECT_CELL_SLAVE,	slave)
 };
 
 char *nl_dect_cell_flags2str(uint32_t flags, char *buf, size_t len)
