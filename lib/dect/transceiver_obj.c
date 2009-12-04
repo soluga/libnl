@@ -234,6 +234,7 @@ uint8_t nl_dect_slot_str2state(const char *str)
 }
 
 static struct trans_tbl slot_flags[] = {
+	__ADD(DECT_SLOT_SYNC,		sync)
 	__ADD(DECT_SLOT_CIPHER,		cipher)
 };
 
