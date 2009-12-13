@@ -13,6 +13,10 @@ extern int			nl_dect_fill_ari(struct nl_msg *,
 extern void			nl_dect_dump_ari(const struct nl_dect_ari *,
 						 struct nl_dump_params *);
 
+extern const char *		nl_dect_ari_class2str(enum dect_ari_classes,
+						      char *buf, size_t len);
+extern enum dect_ari_classes	nl_dect_ari_str2class(const char *);
+
 extern void 			nl_dect_ari_set_class(struct nl_dect_ari *,
 						      enum dect_ari_classes);
 extern enum dect_ari_classes 	nl_dect_ari_get_class(const struct nl_dect_ari *);

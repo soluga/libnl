@@ -138,6 +138,24 @@ void nl_dect_dump_ari(const struct nl_dect_ari *ari, struct nl_dump_params *p)
 
 }
 
+static struct trans_tbl ari_classes[] = {
+	__ADD(DECT_ARC_A,		a)
+	__ADD(DECT_ARC_B,		b)
+	__ADD(DECT_ARC_C,		c)
+	__ADD(DECT_ARC_D,		d)
+	__ADD(DECT_ARC_E,		e)
+};
+
+const char *nl_dect_ari_class2str(enum dect_ari_classes class, char *buf, size_t len)
+{
+	return __type2str(class, buf, len, ari_classes, ARRAY_SIZE(ari_classes));
+}
+
+enum dect_ari_classes nl_dect_ari_str2class(const char *str)
+{
+	return __str2type(str, ari_classes, ARRAY_SIZE(ari_classes));
+}
+
 void nl_dect_ari_set_class(struct nl_dect_ari *ari, enum dect_ari_classes class)
 {
 	ari->ari_flags |= ARI_ATTR_CLASS;

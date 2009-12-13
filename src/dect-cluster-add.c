@@ -21,13 +21,25 @@ int main(int argc, char *argv[])
 		enum {
 			ARG_NAME = 257,
 			ARG_MODE,
+			ARG_CLASS,
 			ARG_EMC,
+			ARG_EIC,
+			ARG_POC,
+			ARG_GOP,
+			ARG_FIL,
+			ARG_FPS,
 			ARG_FPN,
 		};
 		static struct option long_opts[] = {
 			{ "name",		1, 0, ARG_NAME },
 			{ "mode",		1, 0, ARG_MODE },
+			{ "class",		1, 0, ARG_CLASS },
 			{ "emc",		1, 0, ARG_EMC },
+			{ "eic",		1, 0, ARG_EIC },
+			{ "poc",		1, 0, ARG_POC },
+			{ "gop",		1, 0, ARG_GOP },
+			{ "fil",		1, 0, ARG_FIL },
+			{ "fps",		1, 0, ARG_FPS },
 			{ "fpn",		1, 0, ARG_FPN },
 			{ 0, 0, 0, 0 }
 		};
@@ -44,8 +56,26 @@ int main(int argc, char *argv[])
 		case ARG_MODE:
 			nl_dect_cluster_set_mode(cl, nl_dect_cluster_str2mode(optarg));
 			break;
+		case ARG_CLASS:
+			nl_dect_ari_set_class(pari, nl_dect_ari_str2class(optarg));
+			break;
 		case ARG_EMC:
 			nl_dect_ari_set_emc(pari, strtoul(optarg, NULL, 16));
+			break;
+		case ARG_EIC:
+			nl_dect_ari_set_eic(pari, strtoul(optarg, NULL, 16));
+			break;
+		case ARG_POC:
+			nl_dect_ari_set_poc(pari, strtoul(optarg, NULL, 16));
+			break;
+		case ARG_GOP:
+			nl_dect_ari_set_gop(pari, strtoul(optarg, NULL, 16));
+			break;
+		case ARG_FIL:
+			nl_dect_ari_set_fil(pari, strtoul(optarg, NULL, 16));
+			break;
+		case ARG_FPS:
+			nl_dect_ari_set_fps(pari, strtoul(optarg, NULL, 16));
 			break;
 		case ARG_FPN:
 			nl_dect_ari_set_fpn(pari, strtoul(optarg, NULL, 16));
