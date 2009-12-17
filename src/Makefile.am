@@ -100,28 +100,28 @@ nl_list_sockets_LDADD = -lnl-route
 nl_util_addr_SOURCES = nl-util-addr.c
 nl_util_addr_LDADD = -lnl-route
 
-dect_transceiver_bind_SOURCES = dect-transceiver-bind.c utils.c
+dect_transceiver_bind_SOURCES = dect-transceiver-bind.c
 dect_transceiver_bind_LDADD = -lnl-dect
-dect_transceiver_list_SOURCES = dect-transceiver-list.c utils.c
+dect_transceiver_list_SOURCES = dect-transceiver-list.c
 dect_transceiver_list_LDADD = -lnl-dect
 
-dect_cell_add_SOURCES = dect-cell-add.c utils.c
+dect_cell_add_SOURCES = dect-cell-add.c
 dect_cell_add_LDADD = -lnl-dect
-dect_cell_delete_SOURCES = dect-cell-delete.c utils.c
+dect_cell_delete_SOURCES = dect-cell-delete.c
 dect_cell_delete_LDADD = -lnl-dect
-dect_cell_list_SOURCES = dect-cell-list.c utils.c
+dect_cell_list_SOURCES = dect-cell-list.c
 dect_cell_list_LDADD = -lnl-dect
 
-dect_cluster_add_SOURCES = dect-cluster-add.c utils.c
+dect_cluster_add_SOURCES = dect-cluster-add.c
 dect_cluster_add_LDADD = -lnl-dect
-dect_cluster_delete_SOURCES = dect-cluster-delete.c utils.c
+dect_cluster_delete_SOURCES = dect-cluster-delete.c
 dect_cluster_delete_LDADD = -lnl-dect
-dect_cluster_list_SOURCES = dect-cluster-list.c utils.c
+dect_cluster_list_SOURCES = dect-cluster-list.c
 dect_cluster_list_LDADD = -lnl-dect
 
-dect_llme_mac_con_SOURCES = dect-llme-mac-con.c utils.c
+dect_llme_mac_con_SOURCES = dect-llme-mac-con.c
 dect_llme_mac_con_LDADD = -lnl-dect
-dect_llme_monitor_SOURCES = dect-llme-monitor.c utils.c
+dect_llme_monitor_SOURCES = dect-llme-monitor.c
 dect_llme_monitor_LDADD = -lnl-dect
-dect_llme_scan_SOURCES = dect-llme-scan.c utils.c
+dect_llme_scan_SOURCES = dect-llme-scan.c
 dect_llme_scan_LDADD = -lnl-dect

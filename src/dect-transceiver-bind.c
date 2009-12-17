@@ -1,4 +1,4 @@
-#include "utils.h"
+#include "netlink/cli/utils.h"
 
 int main(int argc, char *argv[])
 {
@@ -11,8 +11,8 @@ int main(int argc, char *argv[])
 	};
 	int err;
 
-	sock = nlt_alloc_socket();
-	nlt_connect(sock, NETLINK_DECT);
+	sock = nl_cli_alloc_socket();
+	nl_cli_connect(sock, NETLINK_DECT);
 
 	if (nl_dect_cell_alloc_cache(sock, &cell_cache))
 		exit(1);
@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
 			break;
 
 		switch (c) {
-		case 'v': nlt_print_version(); break;
+		case 'v': nl_cli_print_version(); break;
 		case ARG_TRANSCEIVER:
 			nl_dect_transceiver_set_name(trx, strdup(optarg));
 			break;
@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
 
 	err = nl_dect_transceiver_change(sock, trx, 0);
 	if (err < 0)
-		fatal(err, "Unable to bind to cell: %s", nl_geterror(err));
+		nl_cli_fatal(err, "Unable to bind to cell: %s", nl_geterror(err));
 
 	printf("Bound: ");
 	nl_object_dump(OBJ_CAST(trx), &params);

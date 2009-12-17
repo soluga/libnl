@@ -1,4 +1,4 @@
-#include "utils.h"
+#include "netlink/cli/utils.h"
 
 int main(int argc, char *argv[])
 {
@@ -9,8 +9,8 @@ int main(int argc, char *argv[])
 		.dp_fd = stdout,
 	};
 
-	sock = nlt_alloc_socket();
-	nlt_connect(sock, NETLINK_DECT);
+	sock = nl_cli_alloc_socket();
+	nl_cli_connect(sock, NETLINK_DECT);
 	if (nl_dect_cluster_alloc_cache(sock, &cluster_cache))
 		exit(1);
 

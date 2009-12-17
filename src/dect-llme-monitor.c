@@ -1,4 +1,4 @@
-#include "utils.h"
+#include "netlink/cli/utils.h"
 
 static void obj_input(struct nl_object *obj, void *arg)
 {
@@ -21,8 +21,8 @@ int main(int argc, char *argv[])
 	struct nl_sock *sock;
 	struct nl_cache *cluster_cache;
 
-	sock = nlt_alloc_socket();
-	nlt_connect(sock, NETLINK_DECT);
+	sock = nl_cli_alloc_socket();
+	nl_cli_connect(sock, NETLINK_DECT);
 	if (nl_dect_cluster_alloc_cache(sock, &cluster_cache))
 		exit(1);
 	nl_cache_mngt_provide(cluster_cache);

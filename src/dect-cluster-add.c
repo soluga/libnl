@@ -1,4 +1,4 @@
-#include "utils.h"
+#include "netlink/cli/utils.h"
 
 int main(int argc, char *argv[])
 {
@@ -11,8 +11,8 @@ int main(int argc, char *argv[])
 	};
 	int err;
 
-	sock = nlt_alloc_socket();
-	nlt_connect(sock, NETLINK_DECT);
+	sock = nl_cli_alloc_socket();
+	nl_cli_connect(sock, NETLINK_DECT);
 	cl = nl_dect_cluster_alloc();
 	pari = (void *)nl_dect_cluster_get_pari(cl);
 
@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
 			break;
 
 		switch (c) {
-		case 'v': nlt_print_version(); break;
+		case 'v': nl_cli_print_version(); break;
 		case ARG_NAME:
 			nl_dect_cluster_set_name(cl, strdup(optarg));
 			break;
@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
 	nl_dect_cluster_set_pari(cl, pari);
 	err = nl_dect_cluster_add(sock, cl, 0);
 	if (err < 0)
-		fatal(err, "Unable to add cluster: %s", nl_geterror(err));
+		nl_cli_fatal(err, "Unable to add cluster: %s", nl_geterror(err));
 
 	printf("Added: ");
 	nl_object_dump(OBJ_CAST(cl), &params);

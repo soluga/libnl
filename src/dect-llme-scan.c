@@ -1,4 +1,4 @@
-#include "utils.h"
+#include "netlink/cli/utils.h"
 
 #define CACHE_SIZE	64
 
@@ -79,8 +79,8 @@ int main(int argc, char *argv[])
 	int index;
 	int err;
 
-	sock = nlt_alloc_socket();
-	nlt_connect(sock, NETLINK_DECT);
+	sock = nl_cli_alloc_socket();
+	nl_cli_connect(sock, NETLINK_DECT);
 	if (nl_dect_cluster_alloc_cache(sock, &cluster_cache))
 		exit(1);
 	nl_cache_mngt_provide(cluster_cache);
@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
 			break;
 
 		switch (c) {
-		case 'v': nlt_print_version(); break;
+		case 'v': nl_cli_print_version(); break;
 		case ARG_CLUSTER:
 			index = nl_dect_cluster_name2i(cluster_cache, optarg);
 			nl_dect_llme_msg_set_index(lmsg, index);
@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
 
 	//nl_dect_llme_mac_info_set_pari(lmsg, pari);
 	if ((err = nl_dect_llme_request(sock, lmsg)) < 0)
-		fatal(err, "Unable to send request: %s", nl_geterror(err));
+		nl_cli_fatal(err, "Unable to send request: %s", nl_geterror(err));
 
 	printf("Requested: ");
 	nl_object_dump(OBJ_CAST(lmsg), &params);
