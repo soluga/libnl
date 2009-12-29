@@ -275,6 +275,7 @@ static struct nl_cache_ops nl_dect_transceiver_ops = {
 	.co_msgtypes		= {
 		{ DECT_NEW_TRANSCEIVER, NL_ACT_NEW, "new" },
 		{ DECT_GET_TRANSCEIVER, NL_ACT_GET, "get" },
+		{ DECT_DEL_TRANSCEIVER, NL_ACT_DEL, "del" },
 		END_OF_MSGTYPES_LIST
 	},
 	.co_protocol		= NETLINK_DECT,
