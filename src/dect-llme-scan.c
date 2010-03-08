@@ -63,7 +63,7 @@ static int event_input(struct nl_msg *msg, void *arg)
 {
 	if (nl_msg_parse(msg, &obj_input, NULL) < 0)
 		fprintf(stderr, "Unknown message type\n");
-	return NL_STOP;
+	return NL_OK;
 }
 
 int main(int argc, char *argv[])

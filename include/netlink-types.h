@@ -901,7 +901,10 @@ struct nl_dect_llme_mac_info {
 	uint8_t			mi_rssi;
 	uint32_t		mi_fpc;
 	uint16_t		mi_hlc;
-	uint16_t		mi_ehlc;
+	uint16_t		mi_efpc;
+	uint32_t		mi_ehlc;
+	uint16_t		mi_efpc2;
+	uint32_t		mi_ehlc2;
 };
 
 struct nl_dect_llme_mac_con {

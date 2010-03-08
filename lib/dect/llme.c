@@ -28,12 +28,15 @@
 static struct nl_object_ops llme_msg_obj_ops;
 /** @endcond */
 
-#define MAC_INFO_ATTR_PARI		0x010000
-#define MAC_INFO_ATTR_RPN		0x020000
-#define MAC_INFO_ATTR_RSSI		0x040000
-#define MAC_INFO_ATTR_FPC		0x080000
-#define MAC_INFO_ATTR_HLC		0x100000
-#define MAC_INFO_ATTR_EHLC		0x200000
+#define MAC_INFO_ATTR_PARI		0x0010000
+#define MAC_INFO_ATTR_RPN		0x0020000
+#define MAC_INFO_ATTR_RSSI		0x0040000
+#define MAC_INFO_ATTR_FPC		0x0080000
+#define MAC_INFO_ATTR_HLC		0x0100000
+#define MAC_INFO_ATTR_EFPC		0x0200000
+#define MAC_INFO_ATTR_EHLC		0x0400000
+#define MAC_INFO_ATTR_EFPC2		0x0800000
+#define MAC_INFO_ATTR_EHLC2		0x1000000
 
 static inline struct nl_dect_llme_mac_info *mac_info(const struct nl_dect_llme_msg *lmsg)
 {
@@ -98,15 +101,48 @@ uint16_t nl_dect_llme_mac_info_get_hlc(const struct nl_dect_llme_msg *lmsg)
 	return mac_info(lmsg)->mi_hlc;
 }
 
-void nl_dect_llme_mac_info_set_ehlc(struct nl_dect_llme_msg *lmsg, uint16_t ehlc)
+void nl_dect_llme_mac_info_set_efpc(struct nl_dect_llme_msg *lmsg, uint16_t efpc)
+{
+	mac_info(lmsg)->mi_efpc = efpc;
+	lmsg->ce_mask |= MAC_INFO_ATTR_EFPC;
+}
+
+uint16_t nl_dect_llme_mac_info_get_efpc(const struct nl_dect_llme_msg *lmsg)
+{
+	return mac_info(lmsg)->mi_efpc;
+}
+
+void nl_dect_llme_mac_info_set_ehlc(struct nl_dect_llme_msg *lmsg, uint32_t ehlc)
 {
 	mac_info(lmsg)->mi_ehlc = ehlc;
 	lmsg->ce_mask |= MAC_INFO_ATTR_EHLC;
 }
 
-uint16_t nl_dect_llme_mac_info_get_ehlc(const struct nl_dect_llme_msg *lmsg)
+uint32_t nl_dect_llme_mac_info_get_ehlc(const struct nl_dect_llme_msg *lmsg)
 {
 	return mac_info(lmsg)->mi_ehlc;
+}
+
+void nl_dect_llme_mac_info_set_efpc2(struct nl_dect_llme_msg *lmsg, uint16_t efpc2)
+{
+	mac_info(lmsg)->mi_efpc2 = efpc2;
+	lmsg->ce_mask |= MAC_INFO_ATTR_EFPC2;
+}
+
+uint16_t nl_dect_llme_mac_info_get_efpc2(const struct nl_dect_llme_msg *lmsg)
+{
+	return mac_info(lmsg)->mi_efpc2;
+}
+
+void nl_dect_llme_mac_info_set_ehlc2(struct nl_dect_llme_msg *lmsg, uint32_t ehlc2)
+{
+	mac_info(lmsg)->mi_ehlc2 = ehlc2;
+	lmsg->ce_mask |= MAC_INFO_ATTR_EHLC2;
+}
+
+uint32_t nl_dect_llme_mac_info_get_ehlc2(const struct nl_dect_llme_msg *lmsg)
+{
+	return mac_info(lmsg)->mi_ehlc2;
 }
 
 static struct trans_tbl fixed_part_capabilities[] = {
@@ -175,65 +211,151 @@ uint16_t nl_dect_llme_str2hlc(const char *str)
 			   ARRAY_SIZE(higher_layer_capabilities));
 }
 
-static struct trans_tbl extended_higher_layer_capabilities[] = {
-	__ADD(DECT_EHLC_ISDN_DATA_SERVICE,		isdn_data_service)
-	__ADD(DECT_EHLC_DATA_SERVICE_PROFILE_A_B,	data_service_profile_a_b)
-	__ADD(DECT_EHLC_DATA_SERVICE_PROFILE_C,		data_service_profile_c)
-	__ADD(DECT_EHLC_DATA_SERVICE_PROFILE_D,		data_service_profile_d)
-	__ADD(DECT_EHLC_DATA_SERVICE_PROFILE_E,		data_service_profile_e)
-	__ADD(DECT_EHLC_DATA_SERVICE_PROFILE_F,		data_service_profile_f)
-	__ADD(DECT_EHLC_ASYMETRIC_BEARERS,		asymetric_bearers)
-	__ADD(DECT_EHLC_TPUI_LOCATION_REGISTRATION,	tpui_location_registration)
+static struct trans_tbl extended_fixed_part_capabilities[] = {
+	__ADD(DECT_EFPC_SYNC_PROLONGED_PREAMBLE,	prolonged_preamble)
+	__ADD(DECT_EFPC_MAC_SUSPEND_RESUME,		suspend_resume)
+	__ADD(DECT_EFPC_MAC_IP_Q_SERVICE,		ip_q_service)
+	__ADD(DECT_EFPC_EXTENDED_FP_INFO2,		extended_fp_info2)
 };
 
-char *nl_dect_llme_ehlc2str(uint16_t ehlc, char *buf, size_t len)
+char *nl_dect_llme_efpc2str(uint16_t efpc, char *buf, size_t len)
+{
+	return __flags2str(efpc, buf, len, extended_fixed_part_capabilities,
+			   ARRAY_SIZE(extended_fixed_part_capabilities));
+}
+
+uint16_t nl_dect_llme_str2efpc(const char *str)
+{
+	return __str2flags(str, extended_fixed_part_capabilities,
+			   ARRAY_SIZE(extended_fixed_part_capabilities));
+}
+static struct trans_tbl extended_higher_layer_capabilities[] = {
+	__ADD(DECT_EHLC_ISDN_DATA_SERVICE,		isdn_data_service)
+	__ADD(DECT_EHLC_DPRS_FREL,			dprs_frel)
+	__ADD(DECT_EHLC_DPRS_STREAM,			dprs_stream)
+	__ADD(DECT_EHLC_DATA_SERVICE_PROFILE_D,		data_service_profile_d)
+	__ADD(DECT_EHLC_LRMS,				lrms)
+	__ADD(DECT_EHLC_ASYMETRIC_BEARERS,		asymetric_bearers)
+	__ADD(DECT_EHLC_EMERGENCY_CALLS,		emergency_calls)
+	__ADD(DECT_EHLC_TPUI_LOCATION_REGISTRATION,	tpui_location_registration)
+	__ADD(DECT_EHLC_GPS_SYNCHRONIZED,		gps_synchronized)
+	__ADD(DECT_EHLC_ISDN_INTERMEDIATE_SYSTEM,	isdn_intermediate_system)
+	__ADD(DECT_EHLC_RAP_PART_1_PROFILE,		rap_1_profile)
+	__ADD(DECT_EHLC_V_24,				v_24)
+	__ADD(DECT_EHLC_PPP,				ppp)
+	__ADD(DECT_EHLC_IP,				ip)
+	__ADD(DECT_EHLC_TOKEN_RING,			token_ring)
+	__ADD(DECT_EHLC_ETHERNET,			ethernet)
+	__ADD(DECT_EHLC_IP_ROAMING,			ip_roaming)
+	__ADD(DECT_EHLC_GENERIC_MEDIA_ENCAPSULATION,	generic_media_encapsulation)
+	__ADD(DECT_EHLC_BASIC_ODAP,			basic_odap)
+	__ADD(DECT_EHLC_F_MMS_INTERWORKING_PROFILE,	mms_interworking_profile)
+};
+
+char *nl_dect_llme_ehlc2str(uint32_t ehlc, char *buf, size_t len)
 {
 	return __flags2str(ehlc, buf, len, extended_higher_layer_capabilities,
 			   ARRAY_SIZE(extended_higher_layer_capabilities));
 }
 
-uint16_t nl_dect_llme_str2ehlc(const char *str)
+uint32_t nl_dect_llme_str2ehlc(const char *str)
 {
 	return __str2flags(str, extended_higher_layer_capabilities,
 			   ARRAY_SIZE(extended_higher_layer_capabilities));
 }
 
+static struct trans_tbl extended_fixed_part_capabilities2[] = {
+	__ADD(DECT_EFPC2_NO_EMISSION_CARRIER,		no_emission_carrier)
+	__ADD(DECT_EFPC2_GF,				gf_channel)
+	__ADD(DECT_EFPC2_SI_PF,				si_pf_channel)
+	__ADD(DECT_EFPC2_IP_F,				ip_f_channel)
+	__ADD(DECT_EFPC2_LONG_SLOT_J672,		long_slot_j672)
+	__ADD(DECT_EFPC2_LONG_SLOT_J640,		long_slot_j640)
+};
+
+char *nl_dect_llme_efpc22str(uint16_t efpc2, char *buf, size_t len)
+{
+	return __flags2str(efpc2, buf, len, extended_fixed_part_capabilities2,
+			   ARRAY_SIZE(extended_fixed_part_capabilities2));
+}
+
+uint16_t nl_dect_llme_str2efpc2(const char *str)
+{
+	return __str2flags(str, extended_fixed_part_capabilities2,
+			   ARRAY_SIZE(extended_fixed_part_capabilities2));
+}
+
+static struct trans_tbl extended_higher_layer_capabilities2[] = {
+	__ADD(DECT_EHLC2_NG_DECT_PERMANENT_CLIR,	permanent_clir)
+	__ADD(DECT_EHLC2_NG_DECT_MULTIPLE_CALLS,	multiple_calls)
+	__ADD(DECT_EHLC2_NG_DECT_MULTIPLE_LINES,	multiple_lines)
+	__ADD(DECT_EHLC2_EASY_PAIRING,			easy_pairing)
+	__ADD(DECT_EHLC2_LIST_ACCESS_FEATURES,		list_access_features)
+	__ADD(DECT_EHLC2_NO_EMISSION_MODE,		no_emission_mode)
+	__ADD(DECT_EHLC2_NG_DECT_CALL_DEFLECTION,	call_deflection)
+	__ADD(DECT_EHLC2_NG_DECT_INTRUSION_CALL,	intrusion_call)
+	__ADD(DECT_EHLC2_NG_DECT_CONFERENCE_CALL,	conference_call)
+	__ADD(DECT_EHLC2_NG_DECT_PARALLEL_CALLS,	parallel_calls)
+	__ADD(DECT_EHLC2_NG_DECT_CALL_TRANSFER,		call_transfer)
+	__ADD(DECT_EHLC2_NG_DECT_EXTENDED_WIDEBAND,	extended_wideband)
+	__ADD(DECT_EHLC2_PACKET_DATA_CATEGORY_MASK,	packet_data)
+	__ADD(DECT_EHLC2_NG_DECT_WIDEBAND,		wideband)
+};
+
+char *nl_dect_llme_ehlc22str(uint32_t ehlc2, char *buf, size_t len)
+{
+	return __flags2str(ehlc2, buf, len, extended_higher_layer_capabilities2,
+			   ARRAY_SIZE(extended_higher_layer_capabilities2));
+}
+
+uint32_t nl_dect_llme_str22ehlc(const char *str)
+{
+	return __str2flags(str, extended_higher_layer_capabilities2,
+			   ARRAY_SIZE(extended_higher_layer_capabilities2));
+}
+
+
 static void nl_dect_llme_mac_info_dump(const struct nl_dect_llme_msg *lmsg,
-				    struct nl_dump_params *p)
+				       struct nl_dump_params *p)
 {
 	const struct nl_dect_llme_mac_info *mi = mac_info(lmsg);
 	char buf[256];
 
 	if (lmsg->ce_mask & MAC_INFO_ATTR_PARI) {
-		nl_dump(p, "\tARI: ");
+		nl_dump(p, "\n\tARI: ");
 		nl_dect_dump_ari(&mi->mi_pari, p);
 	}
 	if (lmsg->ce_mask & MAC_INFO_ATTR_RPN)
 		nl_dump(p, " RPN: %x", mi->mi_rpn);
 	if (lmsg->ce_mask & MAC_INFO_ATTR_RSSI)
 		nl_dump(p, " signal level: %.2fdBm", nl_dect_rssi_to_dbm(mi->mi_rssi));
-	if (lmsg->ce_mask & MAC_INFO_ATTR_FPC) {
+	if (lmsg->ce_mask & MAC_INFO_ATTR_FPC && mi->mi_fpc) {
 		nl_dect_llme_fpc2str(mi->mi_fpc, buf, sizeof(buf));
 		nl_dump(p, "\n\tMAC layer capabilities: %s", buf);
 	}
-	if (lmsg->ce_mask & MAC_INFO_ATTR_HLC) {
+	if (lmsg->ce_mask & MAC_INFO_ATTR_EFPC && mi->mi_efpc) {
+		nl_dect_llme_efpc2str(mi->mi_efpc, buf, sizeof(buf));
+		nl_dump(p, "\n\tExtended MAC layer capabilities: %s", buf);
+	}
+	if (lmsg->ce_mask & MAC_INFO_ATTR_EFPC2 && mi->mi_efpc2) {
+		nl_dect_llme_efpc22str(mi->mi_efpc2, buf, sizeof(buf));
+		nl_dump(p, "\n\tExtended MAC layer capabilities 2: %s", buf);
+	}
+	if (lmsg->ce_mask & MAC_INFO_ATTR_HLC && mi->mi_hlc) {
 		nl_dect_llme_hlc2str(mi->mi_hlc, buf, sizeof(buf));
 		nl_dump(p, "\n\tHigher layer capabilities: %s", buf);
 	}
-	if (lmsg->ce_mask & MAC_INFO_ATTR_EHLC) {
+	if (lmsg->ce_mask & MAC_INFO_ATTR_EHLC && mi->mi_ehlc) {
 		nl_dect_llme_ehlc2str(mi->mi_ehlc, buf, sizeof(buf));
 		nl_dump(p, "\n\tExtended higher layer capabilities: %s", buf);
+	}
+	if (lmsg->ce_mask & MAC_INFO_ATTR_EHLC2 && mi->mi_ehlc2) {
+		nl_dect_llme_ehlc22str(mi->mi_ehlc2, buf, sizeof(buf));
+		nl_dump(p, "\n\tExtended higher layer capabilities 2: %s", buf);
 	}
 	nl_dump(p, "\n");
 }
 
-static struct nla_policy nl_dect_efpc_policy[DECTA_EFPC_MAX + 1] = {
-	[DECTA_EFPC_CRFP_HOPS]		= { .type = NLA_U8 },
-	[DECTA_EFPC_CRFP_ENCRYPTION]	= { },
-	[DECTA_EFPC_REP_HOPS]		= { .type = NLA_U8 },
-	[DECTA_EFPC_REP_INTERLACING]	= { },
-	[DECTA_EFPC_EHLC]		= { .type = NLA_U16 },
-};
 
 static struct nla_policy nl_dect_mac_info_policy[DECTA_MAC_INFO_MAX + 1] =  {
 	[DECTA_MAC_INFO_PARI]		= { .type = NLA_NESTED },
@@ -242,7 +364,10 @@ static struct nla_policy nl_dect_mac_info_policy[DECTA_MAC_INFO_MAX + 1] =  {
 	[DECTA_MAC_INFO_SARI_LIST]	= { .type = NLA_NESTED },
 	[DECTA_MAC_INFO_FPC]		= { .type = NLA_U32 },
 	[DECTA_MAC_INFO_HLC]		= { .type = NLA_U16 },
-	[DECTA_MAC_INFO_EFPC]		= { .type = NLA_NESTED },
+	[DECTA_MAC_INFO_EFPC]		= { .type = NLA_U16 },
+	[DECTA_MAC_INFO_EHLC]		= { .type = NLA_U32 },
+	[DECTA_MAC_INFO_EFPC2]		= { .type = NLA_U16 },
+	[DECTA_MAC_INFO_EHLC2]		= { .type = NLA_U32 },
 };
 
 static int nl_dect_llme_mac_info_parse(struct nl_dect_llme_msg *lmsg,
@@ -265,15 +390,14 @@ static int nl_dect_llme_mac_info_parse(struct nl_dect_llme_msg *lmsg,
 		nl_dect_llme_mac_info_set_fpc(lmsg, nla_get_u32(tb[DECTA_MAC_INFO_FPC]));
 	if (tb[DECTA_MAC_INFO_HLC] != NULL)
 		nl_dect_llme_mac_info_set_hlc(lmsg, nla_get_u16(tb[DECTA_MAC_INFO_HLC]));
-	if (tb[DECTA_MAC_INFO_EFPC] != NULL) {
-		struct nlattr *nla[DECTA_EFPC_MAX + 1];
-
-		err = nla_parse_nested(nla, DECTA_EFPC_MAX, tb[DECTA_MAC_INFO_EFPC],
-				       nl_dect_efpc_policy);
-		if (err < 0)
-			return err;
-		nl_dect_llme_mac_info_set_ehlc(lmsg, nla_get_u16(nla[DECTA_EFPC_EHLC]));
-	}
+	if (tb[DECTA_MAC_INFO_EFPC] != NULL)
+		nl_dect_llme_mac_info_set_efpc(lmsg, nla_get_u16(tb[DECTA_MAC_INFO_EFPC]));
+	if (tb[DECTA_MAC_INFO_EHLC] != NULL)
+		nl_dect_llme_mac_info_set_ehlc(lmsg, nla_get_u32(tb[DECTA_MAC_INFO_EHLC]));
+	if (tb[DECTA_MAC_INFO_EFPC2] != NULL)
+		nl_dect_llme_mac_info_set_efpc2(lmsg, nla_get_u16(tb[DECTA_MAC_INFO_EFPC2]));
+	if (tb[DECTA_MAC_INFO_EHLC2] != NULL)
+		nl_dect_llme_mac_info_set_ehlc2(lmsg, nla_get_u32(tb[DECTA_MAC_INFO_EHLC2]));
 	return 0;
 }
 
@@ -292,228 +416,19 @@ static int nl_dect_llme_mac_info_build(struct nl_msg *msg,
 		NLA_PUT_U8(msg, DECTA_MAC_INFO_RPN, mi->mi_rpn);
 	if (lmsg->ce_mask & MAC_INFO_ATTR_FPC)
 		NLA_PUT_U32(msg, DECTA_MAC_INFO_FPC, mi->mi_fpc);
-#ifdef FIXME
+	if (lmsg->ce_mask & MAC_INFO_ATTR_EFPC)
+		NLA_PUT_U16(msg, DECTA_MAC_INFO_EFPC, mi->mi_efpc);
 	if (lmsg->ce_mask & MAC_INFO_ATTR_EHLC)
-		NLA_PUT_U16(msg, DECTA_MAC_INFO_EHLC, mi->mi_ehlc);
-#endif
+		NLA_PUT_U32(msg, DECTA_MAC_INFO_EHLC, mi->mi_ehlc);
+	if (lmsg->ce_mask & MAC_INFO_ATTR_EFPC2)
+		NLA_PUT_U16(msg, DECTA_MAC_INFO_EFPC2, mi->mi_efpc2);
+	if (lmsg->ce_mask & MAC_INFO_ATTR_EHLC2)
+		NLA_PUT_U32(msg, DECTA_MAC_INFO_EHLC2, mi->mi_ehlc2);
 	return 0;
 
 nla_put_failure:
 	return -NLE_MSGSIZE;
 }
-
-#if 0
-#define MAC_CON_ATTR_MCEI		0x010000
-#define MAC_CON_ATTR_ARI		0x020000
-#define MAC_CON_ATTR_PMID		0x040000
-#define MAC_CON_ATTR_TYPE		0x080000
-#define MAC_CON_ATTR_ECN		0x100000
-#define MAC_CON_ATTR_SERVICE		0x200000
-
-static inline struct nl_dect_llme_mac_con *mac_con(const struct nl_dect_llme_msg *lmsg)
-{
-	return (void *)&lmsg->lm_mc;
-}
-
-void nl_dect_llme_mac_con_set_mcei(struct nl_dect_llme_msg *lmsg, uint32_t mcei)
-{
-	mac_con(lmsg)->mc_mcei = mcei;
-	lmsg->ce_mask |= MAC_CON_ATTR_MCEI;
-}
-
-uint32_t nl_dect_llme_mac_con_get_mcei(const struct nl_dect_llme_msg *lmsg)
-{
-	return mac_con(lmsg)->mc_mcei;
-}
-
-void nl_dect_llme_mac_con_set_ari(struct nl_dect_llme_msg *lmsg, const struct nl_dect_ari *ari)
-{
-	struct nl_dect_llme_mac_con *mc = mac_con(lmsg);
-
-	memcpy(&mc->mc_ari, ari, sizeof(mc->mc_ari));
-	lmsg->ce_mask |= MAC_CON_ATTR_ARI;
-}
-
-const struct nl_dect_ari *nl_dect_llme_mac_con_get_ari(const struct nl_dect_llme_msg *lmsg)
-{
-	return &mac_con(lmsg)->mc_ari;
-}
-
-void nl_dect_llme_mac_con_set_pmid(struct nl_dect_llme_msg *lmsg, uint32_t pmid)
-{
-	mac_con(lmsg)->mc_pmid = pmid;
-	lmsg->ce_mask |= MAC_CON_ATTR_PMID;
-}
-
-uint32_t nl_dect_llme_mac_con_get_pmid(const struct nl_dect_llme_msg *lmsg)
-{
-	return mac_con(lmsg)->mc_pmid;
-}
-
-void nl_dect_llme_mac_con_set_type(struct nl_dect_llme_msg *lmsg,
-				enum nl_dect_mac_con_types type)
-{
-	mac_con(lmsg)->mc_type = type;
-	lmsg->ce_mask |= MAC_CON_ATTR_TYPE;
-}
-
-enum nl_dect_mac_con_types nl_dect_llme_mac_con_get_type(const struct nl_dect_llme_msg *lmsg)
-{
-	return mac_con(lmsg)->mc_type;
-}
-
-void nl_dect_llme_mac_con_set_ecn(struct nl_dect_llme_msg *lmsg, uint8_t ecn)
-{
-	mac_con(lmsg)->mc_ecn = ecn;
-	lmsg->ce_mask |= MAC_CON_ATTR_ECN;
-}
-
-uint8_t nl_dect_llme_mac_con_get_ecn(const struct nl_dect_llme_msg *lmsg)
-{
-	return mac_con(lmsg)->mc_ecn;
-}
-
-void nl_dect_llme_mac_con_set_service(struct nl_dect_llme_msg *lmsg,
-				   enum nl_dect_mac_con_service_types service)
-{
-	mac_con(lmsg)->mc_service = service;
-	lmsg->ce_mask |= MAC_CON_ATTR_SERVICE;
-}
-
-enum nl_dect_mac_con_service_types
-nl_dect_llme_mac_con_get_service(const struct nl_dect_llme_msg *lmsg)
-{
-	return mac_con(lmsg)->mc_service;
-}
-
-static struct trans_tbl con_types[] = {
-	__ADD(DECT_MAC_CON_BASIC,		basic)
-	__ADD(DECT_MAC_CON_ADVANCED,		advanced)
-};
-
-char *nl_dect_llme_contype2str(enum nl_dect_mac_con_types type, char *buf, size_t len)
-{
-	return __type2str(type, buf, len, con_types, ARRAY_SIZE(con_types));
-}
-
-enum nl_dect_mac_con_types nl_dect_llme_str2contype(const char *str)
-{
-	return __str2type(str, con_types, ARRAY_SIZE(con_types));
-}
-
-static struct trans_tbl service_types[] = {
-	__ADD(DECT_MAC_CON_IN_MIN_DELAY,	I_N_minimal_delay)
-	__ADD(DECT_MAC_CON_IN_NORM_DELAY,	I_N_normal_delay)
-	__ADD(DECT_MAC_CON_IP_ERROR_DETECTION,	I_P_error_detection)
-	__ADD(DECT_MAC_CON_IP_ERROR_CORRECTION,	I_P_error_correction)
-	__ADD(DECT_MAC_CON_UNKNOWN,		unknown)
-	__ADD(DECT_MAC_CON_C_ONLY,		C_only)
-};
-
-char *nl_dect_llme_service2str(enum nl_dect_mac_con_service_types service,
-			    char *buf, size_t len)
-{
-	return __type2str(service, buf, len, service_types,
-			   ARRAY_SIZE(service_types));
-}
-
-enum nl_dect_mac_con_service_types nl_dect_llme_str2service(const char *str)
-{
-	return __str2type(str, service_types, ARRAY_SIZE(service_types));
-}
-
-static void nl_dect_llme_mac_con_dump(const struct nl_dect_llme_msg *lmsg,
-				   struct nl_dump_params *p)
-{
-	const struct nl_dect_llme_mac_con *mc = mac_con(lmsg);
-	char buf[256];
-
-	nl_dump(p, "\t");
-	if (lmsg->ce_mask & MAC_CON_ATTR_MCEI)
-		nl_dump(p, "MCEI %x: ", mc->mc_mcei);
-	if (lmsg->ce_mask & MAC_CON_ATTR_PMID)
-		nl_dump(p, "PMID: %x ", mc->mc_pmid);
-	if (lmsg->ce_mask & MAC_CON_ATTR_ARI) {
-		nl_dump(p, "=> ");
-		nl_dect_dump_ari(&mc->mc_ari, p);
-		nl_dump(p, " ");
-	}
-	if (lmsg->ce_mask & MAC_CON_ATTR_ECN)
-		nl_dump(p, "ECN: %x ", mc->mc_ecn);
-	nl_dump(p, "\n");
-
-	if (lmsg->ce_mask & MAC_CON_ATTR_TYPE) {
-		nl_dect_llme_contype2str(mc->mc_type, buf, sizeof(buf));
-		nl_dump(p, "\tType: %s\n", buf);
-	}
-	if (lmsg->ce_mask & MAC_CON_ATTR_SERVICE) {
-		nl_dect_llme_service2str(mc->mc_service, buf, sizeof(buf));
-		nl_dump(p, "\tService: %s\n", buf);
-	}
-	nl_dump(p, "\n");
-}
-
-static struct nla_policy nl_dect_mac_con_policy[DECTA_MAC_CON_MAX + 1] = {
-	[DECTA_MAC_CON_MCEI]		= { .type = NLA_U32 },
-	[DECTA_MAC_CON_ARI]		= { .type = NLA_NESTED },
-	[DECTA_MAC_CON_PMID]		= { .type = NLA_U32 },
-	[DECTA_MAC_CON_TYPE]		= { .type = NLA_U8 },
-	[DECTA_MAC_CON_ECN]		= { .type = NLA_U8 },
-	[DECTA_MAC_CON_SERVICE]		= { .type = NLA_U8 },
-};
-
-static int nl_dect_llme_mac_con_parse(struct nl_dect_llme_msg *lmsg,
-				   struct nlattr *tb[])
-{
-	struct nl_dect_ari ari;
-	int err;
-
-	if (tb[DECTA_MAC_CON_MCEI] != NULL)
-		nl_dect_llme_mac_con_set_mcei(lmsg, nla_get_u32(tb[DECTA_MAC_CON_MCEI]));
-	if (tb[DECTA_MAC_CON_ARI] != NULL) {
-		err = nl_dect_parse_ari(&ari, tb[DECTA_MAC_CON_ARI]);
-		if (err < 0)
-			return err;
-		nl_dect_llme_mac_con_set_ari(lmsg, &ari);
-	}
-	if (tb[DECTA_MAC_CON_PMID] != NULL)
-		nl_dect_llme_mac_con_set_pmid(lmsg, nla_get_u32(tb[DECTA_MAC_CON_PMID]));
-	if (tb[DECTA_MAC_CON_TYPE] != NULL)
-		nl_dect_llme_mac_con_set_type(lmsg, nla_get_u8(tb[DECTA_MAC_CON_TYPE]));
-	if (tb[DECTA_MAC_CON_ECN] != NULL)
-		nl_dect_llme_mac_con_set_ecn(lmsg, nla_get_u8(tb[DECTA_MAC_CON_ECN]));
-	if (tb[DECTA_MAC_CON_SERVICE] != NULL)
-		nl_dect_llme_mac_con_set_service(lmsg, nla_get_u8(tb[DECTA_MAC_CON_SERVICE]));
-	return 0;
-}
-
-static int nl_dect_llme_mac_con_build(struct nl_msg *msg,
-				   struct nl_dect_llme_msg *lmsg)
-{
-	struct nl_dect_llme_mac_con *mc = mac_con(lmsg);
-	int err;
-
-	if (lmsg->ce_mask & MAC_CON_ATTR_MCEI)
-		NLA_PUT_U32(msg, DECTA_MAC_CON_MCEI, mc->mc_mcei);
-	if (lmsg->ce_mask & MAC_CON_ATTR_ARI) {
-		err = nl_dect_fill_ari(msg, &mc->mc_ari, DECTA_MAC_CON_ARI);
-		if (err < 0)
-			goto nla_put_failure;
-	}
-	if (lmsg->ce_mask & MAC_CON_ATTR_PMID)
-		NLA_PUT_U32(msg, DECTA_MAC_CON_PMID, mc->mc_pmid);
-	if (lmsg->ce_mask & MAC_CON_ATTR_TYPE)
-		NLA_PUT_U8(msg, DECTA_MAC_CON_TYPE, mc->mc_type);
-	if (lmsg->ce_mask & MAC_CON_ATTR_ECN)
-		NLA_PUT_U8(msg, DECTA_MAC_CON_ECN, mc->mc_ecn);
-	if (lmsg->ce_mask & MAC_CON_ATTR_SERVICE)
-		NLA_PUT_U8(msg, DECTA_MAC_CON_SERVICE, mc->mc_service);
-	return 0;
-
-nla_put_failure:
-	return -NLE_MSGSIZE;
-}
-#endif
 
 static const struct nl_dect_llme_link {
 	int (*parse)(struct nl_dect_llme_msg *, struct nlattr *[]);
@@ -536,15 +451,6 @@ static const struct nl_dect_llme_link {
 		.build		= nl_dect_llme_mac_info_build,
 		.dump		= nl_dect_llme_mac_info_dump,
 	},
-#if 0
-	[DECT_LLME_MAC_CON] = {
-		.policy		= nl_dect_mac_con_policy,
-		.maxtype	= DECTA_MAC_CON_MAX,
-		.parse		= nl_dect_llme_mac_con_parse,
-		.build		= nl_dect_llme_mac_con_build,
-		.dump		= nl_dect_llme_mac_con_dump,
-	},
-#endif
 };
 
 static void llme_msg_dump(struct nl_object *obj, struct nl_dump_params *p)
@@ -555,7 +461,7 @@ static void llme_msg_dump(struct nl_object *obj, struct nl_dump_params *p)
 
 	nl_dect_llme_msgtype2str(lmsg->lm_type, buf1, sizeof(buf1));
 	nl_dect_llme_op2str(lmsg->lm_op, buf2, sizeof(buf2));
-	nl_dump(p, "%s-%s:\n", buf1, buf2);
+	nl_dump(p, "%s-%s: ", buf1, buf2);
 
 	link = &nl_dect_llme_dispatch[lmsg->lm_type];
 	link->dump(lmsg, p);
@@ -777,9 +683,6 @@ void nl_dect_llme_msg_put(struct nl_dect_llme_msg *lmsg)
 static struct trans_tbl llme_types[] = {
 	__ADD(DECT_LLME_SCAN,		SCAN)
 	__ADD(DECT_LLME_MAC_INFO,	MAC_INFO)
-#if 0
-	__ADD(DECT_LLME_MAC_CON,	MAC_CON)
-#endif
 };
 
 char *nl_dect_llme_msgtype2str(enum dect_llme_msg_types type, char *buf, size_t len)

@@ -56,9 +56,21 @@ extern void			nl_dect_llme_mac_info_set_hlc(struct nl_dect_llme_msg *,
 							      uint16_t);
 extern uint16_t			nl_dect_llme_mac_info_get_hlc(const struct nl_dect_llme_msg *);
 
-extern void			nl_dect_llme_mac_info_set_ehlc(struct nl_dect_llme_msg *,
+extern void			nl_dect_llme_mac_info_set_efpc(struct nl_dect_llme_msg *,
 							       uint16_t);
-extern uint16_t			nl_dect_llme_mac_info_get_ehlc(const struct nl_dect_llme_msg *);
+extern uint16_t			nl_dect_llme_mac_info_get_efpc(const struct nl_dect_llme_msg *);
+
+extern void			nl_dect_llme_mac_info_set_ehlc(struct nl_dect_llme_msg *,
+							       uint32_t);
+extern uint32_t			nl_dect_llme_mac_info_get_ehlc(const struct nl_dect_llme_msg *);
+
+extern void			nl_dect_llme_mac_info_set_efpc2(struct nl_dect_llme_msg *,
+							        uint16_t);
+extern uint16_t			nl_dect_llme_mac_info_get_efpc2(const struct nl_dect_llme_msg *);
+
+extern void			nl_dect_llme_mac_info_set_ehlc2(struct nl_dect_llme_msg *,
+							        uint32_t);
+extern uint32_t			nl_dect_llme_mac_info_get_ehlc2(const struct nl_dect_llme_msg *);
 
 extern char *			nl_dect_llme_fpc2str(uint32_t, char *, size_t);
 extern uint32_t			nl_dect_llme_str2fpc(const char *);
@@ -66,41 +78,16 @@ extern uint32_t			nl_dect_llme_str2fpc(const char *);
 extern char *			nl_dect_llme_hlc2str(uint16_t, char *, size_t);
 extern uint16_t			nl_dect_llme_str2hlc(const char *);
 
-extern char *			nl_dect_llme_ehlc2str(uint16_t, char *, size_t);
-extern uint16_t			nl_dect_llme_str2ehlc(const char *);
+extern char *			nl_dect_llme_efpc2str(uint16_t, char *, size_t);
+extern uint16_t			nl_dect_llme_str2efpc(const char *);
 
-#if 0
-extern void			nl_dect_llme_mac_con_set_mcei(struct nl_dect_llme_msg *,
-							   uint32_t);
-extern uint32_t			nl_dect_llme_mac_con_get_mcei(const struct nl_dect_llme_msg *);
+extern char *			nl_dect_llme_ehlc2str(uint32_t, char *, size_t);
+extern uint32_t			nl_dect_llme_str2ehlc(const char *);
 
-extern void			nl_dect_llme_mac_con_set_ari(struct nl_dect_llme_msg *,
-							  const struct nl_dect_ari *);
-extern const struct nl_dect_ari *	nl_dect_llme_mac_con_get_ari(const struct nl_dect_llme_msg *);
+extern char *			nl_dect_llme_efpc22str(uint16_t, char *, size_t);
+extern uint16_t			nl_dect_llme_str22efpc(const char *);
 
-extern void			nl_dect_llme_mac_con_set_pmid(struct nl_dect_llme_msg *,
-							   uint32_t);
-extern uint32_t			nl_dect_llme_mac_con_get_pmid(const struct nl_dect_llme_msg *);
-
-extern void			nl_dect_llme_mac_con_set_type(struct nl_dect_llme_msg *,
-							   enum nl_dect_mac_con_types);
-extern enum nl_dect_mac_con_types	nl_dect_llme_mac_con_get_type(const struct nl_dect_llme_msg *);
-
-extern void			nl_dect_llme_mac_con_set_ecn(struct nl_dect_llme_msg *,
-							  uint8_t);
-extern uint8_t			nl_dect_llme_mac_con_get_ecn(const struct nl_dect_llme_msg *);
-
-extern void			nl_dect_llme_mac_con_set_service(struct nl_dect_llme_msg *,
-							      enum nl_dect_mac_con_service_types);
-extern enum nl_dect_mac_con_service_types nl_dect_llme_mac_con_get_service(const struct nl_dect_llme_msg *);
-
-extern char *			nl_dect_llme_contype2str(enum nl_dect_mac_con_types,
-						      char *, size_t);
-extern enum nl_dect_mac_con_types	nl_dect_llme_str2contype(const char *);
-
-extern char *			nl_dect_llme_service2str(enum nl_dect_mac_con_service_types,
-						      char *, size_t);
-extern enum nl_dect_mac_con_service_types nl_dect_llme_str2service(const char *);
-#endif
+extern char *			nl_dect_llme_ehlc22str(uint32_t, char *, size_t);
+extern uint32_t			nl_dect_llme_str22ehlc(const char *);
 
 #endif /* NETLINK_DECT_LLME_H */

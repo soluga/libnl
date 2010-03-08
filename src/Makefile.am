@@ -24,7 +24,7 @@ noinst_PROGRAMS = \
 	dect-transceiver-bind dect-transceiver-list \
 	dect-cell-add dect-cell-delete dect-cell-list \
 	dect-cluster-add dect-cluster-delete dect-cluster-list \
-	dect-llme-mac-con dect-llme-monitor dect-llme-scan
+	dect-llme-monitor dect-llme-scan
 
 genl_ctrl_list_SOURCES = genl-ctrl-list.c 
 genl_ctrl_list_LDADD = -lnl-genl -lnl-route
@@ -119,8 +119,6 @@ dect_cluster_delete_LDADD = -lnl-dect
 dect_cluster_list_SOURCES = dect-cluster-list.c
 dect_cluster_list_LDADD = -lnl-dect
 
-dect_llme_mac_con_SOURCES = dect-llme-mac-con.c
-dect_llme_mac_con_LDADD = -lnl-dect
 dect_llme_monitor_SOURCES = dect-llme-monitor.c
 dect_llme_monitor_LDADD = -lnl-dect
 dect_llme_scan_SOURCES = dect-llme-scan.c
