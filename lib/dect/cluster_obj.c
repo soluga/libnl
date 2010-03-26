@@ -158,7 +158,6 @@ nla_put_failure:
 static struct trans_tbl cluster_modes[] = {
 	__ADD(DECT_MODE_FP, FP)
 	__ADD(DECT_MODE_PP, PP)
-	__ADD(DECT_MODE_MONITOR, monitor)
 };
 
 char *nl_dect_cluster_mode2str(enum dect_cluster_modes mode, char *buf, size_t len)
