@@ -6,5 +6,5 @@ includedir=@includedir@
 Name: libnl
 Description: Convenience library for netlink sockets
 Version: @PACKAGE_VERSION@
-Libs: -L${libdir} -lnl
+Libs: -L${libdir} -lnl -lnl-route -lnl-nf -lnl-genl -lnl-cli
 Cflags: -I${includedir}
