@@ -193,7 +193,7 @@ static struct trans_tbl higher_layer_capabilities[] = {
 	__ADD(DECT_HLC_CISS_SERVICE,			ciss_service)
 	__ADD(DECT_HLC_CLMS_SERVICE,			clms_service)
 	__ADD(DECT_HLC_COMS_SERVICE,			coms_service)
-	__ADD(DECT_HLC_ACCESS_RIGHT_REQUESTS,		access_right_requests)
+	__ADD(DECT_HLC_ACCESS_RIGHTS_REQUESTS,		access_rights_requests)
 	__ADD(DECT_HLC_EXTERNAL_HANDOVER,		external_handover)
 	__ADD(DECT_HLC_CONNECTION_HANDOVER,		connection_handover)
 	__ADD(DECT_HLC_RESERVED,			reserved)
