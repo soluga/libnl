@@ -416,6 +416,8 @@ static int nl_dect_llme_mac_info_build(struct nl_msg *msg,
 		NLA_PUT_U8(msg, DECTA_MAC_INFO_RPN, mi->mi_rpn);
 	if (lmsg->ce_mask & MAC_INFO_ATTR_FPC)
 		NLA_PUT_U32(msg, DECTA_MAC_INFO_FPC, mi->mi_fpc);
+	if (lmsg->ce_mask & MAC_INFO_ATTR_HLC)
+		NLA_PUT_U16(msg, DECTA_MAC_INFO_HLC, mi->mi_hlc);
 	if (lmsg->ce_mask & MAC_INFO_ATTR_EFPC)
 		NLA_PUT_U16(msg, DECTA_MAC_INFO_EFPC, mi->mi_efpc);
 	if (lmsg->ce_mask & MAC_INFO_ATTR_EHLC)
@@ -445,6 +447,13 @@ static const struct nl_dect_llme_link {
 		.dump		= nl_dect_llme_mac_info_dump,
 	},
 	[DECT_LLME_MAC_INFO] = {
+		.policy		= nl_dect_mac_info_policy,
+		.maxtype	= DECTA_MAC_INFO_MAX,
+		.parse		= nl_dect_llme_mac_info_parse,
+		.build		= nl_dect_llme_mac_info_build,
+		.dump		= nl_dect_llme_mac_info_dump,
+	},
+	[DECT_LLME_MAC_RFP_PRELOAD] = {
 		.policy		= nl_dect_mac_info_policy,
 		.maxtype	= DECTA_MAC_INFO_MAX,
 		.parse		= nl_dect_llme_mac_info_parse,
