@@ -24,10 +24,12 @@ int main(int argc, char *argv[])
 		enum {
 			ARG_TRANSCEIVER = 257,
 			ARG_CELL,
+			ARG_UNBIND,
 		};
 		static struct option long_opts[] = {
 			{ "transceiver",	1, 0, ARG_TRANSCEIVER },
 			{ "cell",		1, 0, ARG_CELL },
+			{ "unbind",		0, 0, ARG_UNBIND },
 			{ 0, 0, 0, 0 }
 		};
 
@@ -42,6 +44,9 @@ int main(int argc, char *argv[])
 			break;
 		case ARG_CELL:
 			nl_dect_transceiver_set_link(trx, nl_dect_cell_name2i(cell_cache, optarg));
+			break;
+		case ARG_UNBIND:
+			nl_dect_transceiver_set_link(trx, -1);
 			break;
 		}
 	}
