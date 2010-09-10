@@ -837,6 +837,7 @@ struct nl_dect_transceiver_slot {
 	uint32_t		dts_rx_packets;
 	uint32_t		dts_rx_a_crc_errors;
 	uint32_t		dts_rx_x_crc_errors;
+	uint32_t		dts_rx_z_crc_errors;
 	uint32_t		dts_tx_bytes;
 	uint32_t		dts_tx_packets;
 };
