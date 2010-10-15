@@ -83,6 +83,7 @@ struct nl_cache_assoc
 {
 	struct nl_cache *	ca_cache;
 	change_func_t		ca_change;
+	void *			ca_change_data;
 };
 
 struct nl_cache_mngr
@@ -701,6 +702,13 @@ struct genl_family_op
 	struct nl_list_head	o_list;
 };
 
+struct genl_family_grp {
+        struct genl_family      *family;        /* private */
+        struct nl_list_head     list;           /* private */
+        char                    name[GENL_NAMSIZ];
+        u_int32_t               id;
+};
+
 struct genl_family
 {
 	NLHDR_COMMON
@@ -712,6 +720,7 @@ struct genl_family
 	uint32_t		gf_maxattr;
 
 	struct nl_list_head	gf_ops;
+	struct nl_list_head	gf_mc_grps;
 };
 
 union nfnl_ct_proto
