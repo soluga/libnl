@@ -52,6 +52,11 @@ void nl_dect_llme_mac_info_set_pari(struct nl_dect_llme_msg *lmsg,
 	lmsg->ce_mask |= MAC_INFO_ATTR_PARI;
 }
 
+bool nl_dect_llme_mac_info_test_pari(const struct nl_dect_llme_msg *lmsg)
+{
+	return !!(lmsg->ce_mask & MAC_INFO_ATTR_PARI);
+}
+
 const struct nl_dect_ari *nl_dect_llme_mac_info_get_pari(const struct nl_dect_llme_msg *lmsg)
 {
 	return &mac_info(lmsg)->mi_pari;

@@ -38,6 +38,7 @@ extern enum dect_llme_ops	nl_dect_llme_str2op(const char *);
 
 extern void			nl_dect_llme_mac_info_set_pari(struct nl_dect_llme_msg *lmsg,
 							       const struct nl_dect_ari *);
+extern bool			nl_dect_llme_mac_info_test_pari(const struct nl_dect_llme_msg *);
 extern const struct nl_dect_ari *nl_dect_llme_mac_info_get_pari(const struct nl_dect_llme_msg *);
 
 extern void			nl_dect_llme_mac_info_set_rpn(struct nl_dect_llme_msg *,
