@@ -178,17 +178,32 @@ static void __init init_msg_size(void)
  */
 
 /**
- * length of netlink message not including padding
- * @arg payload		length of message payload
+ * Calculates size of netlink message based on payload length.
+ * @arg payload		Length of payload
+ *
+ * See \ref core_msg_fmt_align for more information on alignment.
+ *
+ * @return size of netlink message without padding.
  */
-int nlmsg_msg_size(int payload)
+int nlmsg_size(int payload)
 {
 	return NLMSG_HDRLEN + payload;
 }
 
+int nlmsg_msg_size(int payload)
+{
+	return nlmsg_size(payload);
+}
+
 /**
- * length of netlink message including padding
- * @arg payload		length of message payload
+ * Calculates size of netlink message including padding based on payload length
+ * @arg payload		Length of payload
+ *
+ * This function is idential to nlmsg_size() + nlmsg_padlen().
+ *
+ * See \ref core_msg_fmt_align for more information on alignment.
+ *
+ * @return Size of netlink message including padding.
  */
 int nlmsg_total_size(int payload)
 {
@@ -196,8 +211,16 @@ int nlmsg_total_size(int payload)
 }
 
 /**
- * length of padding at the message's tail
- * @arg payload		length of message payload
+ * Size of padding that needs to be added at end of message
+ * @arg payload		Length of payload
+ *
+ * Calculates the number of bytes of padding which is required to be added to
+ * the end of the message to ensure that the next netlink message header begins
+ * properly aligned to NLMSG_ALIGNTO.
+ *
+ * See \ref core_msg_fmt_align for more information on alignment.
+ *
+ * @return Number of bytes of padding needed.
  */
 int nlmsg_padlen(int payload)
 {
@@ -207,13 +230,15 @@ int nlmsg_padlen(int payload)
 /** @} */
 
 /**
- * @name Payload Access
+ * @name Access to Message Payload
  * @{
  */
 
 /**
- * head of message payload
- * @arg nlh		netlink messsage header
+ * Return pointer to message payload
+ * @arg nlh		Netlink message header
+ *
+ * @return Pointer to start of message payload.
  */
 void *nlmsg_data(const struct nlmsghdr *nlh)
 {
@@ -226,12 +251,19 @@ void *nlmsg_tail(const struct nlmsghdr *nlh)
 }
 
 /**
- * length of message payload
- * @arg nlh		netlink message header
+ * Return length of message payload
+ * @arg nlh		Netlink message header
+ *
+ * @return Length of message payload in bytes.
  */
-int nlmsg_len(const struct nlmsghdr *nlh)
+int nlmsg_datalen(const struct nlmsghdr *nlh)
 {
 	return nlh->nlmsg_len - NLMSG_HDRLEN;
+}
+
+int nlmsg_len(const struct nlmsghdr *nlh)
+{
+	return nlmsg_datalen(nlh);
 }
 
 /** @} */
@@ -374,7 +406,7 @@ static struct nl_msg *__nlmsg_alloc(size_t len)
 
 	nm->nm_refcnt = 1;
 
-	nm->nm_nlh = malloc(len);
+	nm->nm_nlh = calloc(1, len);
 	if (!nm->nm_nlh)
 		goto errout;
 
@@ -529,8 +561,8 @@ void *nlmsg_reserve(struct nl_msg *n, size_t len, int pad)
 	if (tlen > len)
 		memset(buf + len, 0, tlen - len);
 
-	NL_DBG(2, "msg %p: Reserved %zu bytes, pad=%d, nlmsg_len=%d\n",
-		  n, len, pad, n->nm_nlh->nlmsg_len);
+	NL_DBG(2, "msg %p: Reserved %zu (%zu) bytes, pad=%d, nlmsg_len=%d\n",
+		  n, tlen, len, pad, n->nm_nlh->nlmsg_len);
 
 	return buf;
 }
@@ -744,7 +776,7 @@ struct ucred *nlmsg_get_creds(struct nl_msg *msg)
  * @{
  */
 
-static struct trans_tbl nl_msgtypes[] = {
+static const struct trans_tbl nl_msgtypes[] = {
 	__ADD(NLMSG_NOOP,NOOP)
 	__ADD(NLMSG_ERROR,ERROR)
 	__ADD(NLMSG_DONE,DONE)

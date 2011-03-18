@@ -49,7 +49,7 @@ static int cls_msg_parser(struct nl_cache_ops *ops, struct sockaddr_nl *who,
 	}
 	cls->ce_msgtype = nlh->nlmsg_type;
 
-	err = tca_msg_parser(nlh, (struct rtnl_tca *) cls);
+	err = tca_msg_parser(nlh, (struct rtnl_tc *) cls);
 	if (err < 0)
 		goto errout_free;
 
@@ -87,7 +87,7 @@ static int cls_build(struct rtnl_cls *cls, int type, int flags,
 	int err, prio, proto;
 	struct tcmsg *tchdr;
 
-	err = tca_build_msg((struct rtnl_tca *) cls, type, flags, result);
+	err = tca_build_msg((struct rtnl_tc *) cls, type, flags, result);
 	if (err < 0)
 		return err;
 
@@ -98,19 +98,17 @@ static int cls_build(struct rtnl_cls *cls, int type, int flags,
 
 	cops = rtnl_cls_lookup_ops(cls);
 	if (cops && cops->co_get_opts) {
-		struct nl_msg *opts;
+		struct nlattr *opts;
 
-		if (!(opts = nlmsg_alloc())) {
+		if (!(opts = nla_nest_start(*result, TCA_OPTIONS))) {
 			err = -NLE_NOMEM;
 			goto errout;
 		}
 
-		if (!(err = cops->co_get_opts(cls, opts)))
-			err = nla_put_nested(*result, TCA_OPTIONS, opts);
-
-		nlmsg_free(opts);
-		if (err < 0)
+		if ((err = cops->co_get_opts(cls, *result)) < 0)
 			goto errout;
+
+		nla_nest_end(*result, opts);
 	}
 
 	return 0;

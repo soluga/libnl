@@ -211,8 +211,8 @@ int nl_sendmsg(struct nl_sock *sk, struct nl_msg *msg, struct msghdr *hdr)
 
 	cb = sk->s_cb;
 	if (cb->cb_set[NL_CB_MSG_OUT])
-		if (nl_cb_call(cb, NL_CB_MSG_OUT, msg) != NL_OK)
-			return 0;
+		if ((ret = nl_cb_call(cb, NL_CB_MSG_OUT, msg)) != NL_OK)
+			return ret;
 
 	ret = sendmsg(sk->s_fd, hdr, 0);
 	if (ret < 0)
@@ -288,7 +288,7 @@ int nl_send(struct nl_sock *sk, struct nl_msg *msg)
 	return nl_send_iovec(sk, msg, &iov, 1);
 }
 
-void nl_auto_complete(struct nl_sock *sk, struct nl_msg *msg)
+void nl_complete_msg(struct nl_sock *sk, struct nl_msg *msg)
 {
 	struct nlmsghdr *nlh;
 
@@ -308,10 +308,18 @@ void nl_auto_complete(struct nl_sock *sk, struct nl_msg *msg)
 		nlh->nlmsg_flags |= NLM_F_ACK;
 }
 
+void nl_auto_complete(struct nl_sock *sk, struct nl_msg *msg)
+{
+	nl_complete_msg(sk, msg);
+}
+
 /**
- * Send netlink message and check & extend header values as needed.
+ * Automatically complete and send a netlink message
  * @arg sk		Netlink socket.
  * @arg msg		Netlink message to be sent.
+ *
+ * This function takes a netlink message and passes it on to
+ * nl_auto_complete() for completion.
  *
  * Checks the netlink message \c nlh for completness and extends it
  * as required before sending it out. Checked fields include pid,
@@ -320,16 +328,21 @@ void nl_auto_complete(struct nl_sock *sk, struct nl_msg *msg)
  * @see nl_send()
  * @return Number of characters sent or a negative error code.
  */
-int nl_send_auto_complete(struct nl_sock *sk, struct nl_msg *msg)
+int nl_send_auto(struct nl_sock *sk, struct nl_msg *msg)
 {
 	struct nl_cb *cb = sk->s_cb;
 
-	nl_auto_complete(sk, msg);
+	nl_complete_msg(sk, msg);
 
 	if (cb->cb_send_ow)
 		return cb->cb_send_ow(sk, msg);
 	else
 		return nl_send(sk, msg);
+}
+
+int nl_send_auto_complete(struct nl_sock *sk, struct nl_msg *msg)
+{
+	return nl_send_auto(sk, msg);
 }
 
 /**
@@ -414,6 +427,8 @@ int nl_recv(struct nl_sock *sk, struct sockaddr_nl *nla,
 	};
 	struct cmsghdr *cmsg;
 
+	memset(nla, 0, sizeof(*nla));
+
 	if (sk->s_flags & NL_MSG_PEEK)
 		flags |= MSG_PEEK;
 
@@ -472,8 +487,10 @@ retry:
 	for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
 		if (cmsg->cmsg_level == SOL_SOCKET &&
 		    cmsg->cmsg_type == SCM_CREDENTIALS) {
-			*creds = calloc(1, sizeof(struct ucred));
-			memcpy(*creds, CMSG_DATA(cmsg), sizeof(struct ucred));
+			if (creds) {
+				*creds = calloc(1, sizeof(struct ucred));
+				memcpy(*creds, CMSG_DATA(cmsg), sizeof(struct ucred));
+			}
 			break;
 		}
 	}
@@ -548,14 +565,18 @@ continue_reading:
 		/* Sequence number checking. The check may be done by
 		 * the user, otherwise a very simple check is applied
 		 * enforcing strict ordering */
-		if (cb->cb_set[NL_CB_SEQ_CHECK])
+		if (cb->cb_set[NL_CB_SEQ_CHECK]) {
 			NL_CB_CALL(cb, NL_CB_SEQ_CHECK, msg);
-		else if (hdr->nlmsg_seq != sk->s_seq_expect) {
-			if (cb->cb_set[NL_CB_INVALID])
-				NL_CB_CALL(cb, NL_CB_INVALID, msg);
-			else {
-				err = -NLE_SEQ_MISMATCH;
-				goto out;
+
+		/* Only do sequence checking if auto-ack mode is enabled */
+		} else if (!(sk->s_flags & NL_NO_AUTO_ACK)) {
+			if (hdr->nlmsg_seq != sk->s_seq_expect) {
+				if (cb->cb_set[NL_CB_INVALID])
+					NL_CB_CALL(cb, NL_CB_INVALID, msg);
+				else {
+					err = -NLE_SEQ_MISMATCH;
+					goto out;
+				}
 			}
 		}
 
@@ -620,7 +641,7 @@ continue_reading:
 		else if (hdr->nlmsg_type == NLMSG_ERROR) {
 			struct nlmsgerr *e = nlmsg_data(hdr);
 
-			if (hdr->nlmsg_len < nlmsg_msg_size(sizeof(*e))) {
+			if (hdr->nlmsg_len < nlmsg_size(sizeof(*e))) {
 				/* Truncated error message, the default action
 				 * is to stop parsing. The user may overrule
 				 * this action by returning NL_SKIP or

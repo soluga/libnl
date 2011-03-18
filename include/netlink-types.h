@@ -150,29 +150,31 @@ struct rtnl_link
 {
 	NLHDR_COMMON
 
-	char		l_name[IFNAMSIZ];
-
-	uint32_t	l_family;
-	uint32_t	l_arptype;
-	uint32_t	l_index;
-	uint32_t	l_flags;
-	uint32_t	l_change;
-	uint32_t 	l_mtu;
-	uint32_t	l_link;
-	uint32_t	l_txqlen;
-	uint32_t	l_weight;
-	uint32_t	l_master;
-	struct nl_addr *l_addr;	
-	struct nl_addr *l_bcast;
-	char		l_qdisc[IFQDISCSIZ];
-	struct rtnl_link_map l_map;
-	uint64_t	l_stats[RTNL_LINK_STATS_MAX+1];
-	uint32_t	l_flag_mask;
-	uint8_t		l_operstate;
-	uint8_t		l_linkmode;
+	char				l_name[IFNAMSIZ];
+	uint32_t			l_family;
+	uint32_t			l_arptype;
+	uint32_t			l_index;
+	uint32_t			l_flags;
+	uint32_t			l_change;
+	uint32_t 			l_mtu;
+	uint32_t			l_link;
+	uint32_t			l_txqlen;
+	uint32_t			l_weight;
+	uint32_t			l_master;
+	struct nl_addr *		l_addr;	
+	struct nl_addr *		l_bcast;
+	char				l_qdisc[IFQDISCSIZ];
+	struct rtnl_link_map		l_map;
+	uint64_t			l_stats[RTNL_LINK_STATS_MAX+1];
+	uint32_t			l_flag_mask;
+	uint32_t			l_num_vf;
+	uint8_t				l_operstate;
+	uint8_t				l_linkmode;
 	/* 2 byte hole */
-	struct rtnl_link_info_ops *l_info_ops;
-	void *		l_info;
+	struct rtnl_link_info_ops *	l_info_ops;
+	void *				l_af_data[AF_MAX];
+	void *				l_info;
+	char *				l_ifalias;
 };
 
 struct rtnl_ncacheinfo
@@ -281,20 +283,21 @@ struct rtnl_route
 struct rtnl_rule
 {
 	NLHDR_COMMON
-
-	uint64_t	r_mark;
-	uint32_t	r_prio;
-	uint32_t	r_realms;
-	uint32_t	r_table;
-	uint8_t		r_dsfield;
-	uint8_t		r_type;
 	uint8_t		r_family;
-	uint8_t		r_src_len;
-	uint8_t		r_dst_len;
-	char		r_iif[IFNAMSIZ];
+	uint8_t		r_action;
+	uint8_t		r_dsfield; /* ipv4 only */
+	uint8_t		r_unused;
+	uint32_t	r_table;
+	uint32_t	r_flags;
+	uint32_t	r_prio;
+	uint32_t	r_mark;
+	uint32_t	r_mask;
+	uint32_t	r_goto;
+	uint32_t	r_flow; /* ipv4 only */
 	struct nl_addr *r_src;
 	struct nl_addr *r_dst;
-	struct nl_addr *r_srcmap;
+	char		r_iifname[IFNAMSIZ];
+	char		r_oifname[IFNAMSIZ];
 };
 
 struct rtnl_neightbl_parms
@@ -414,8 +417,8 @@ struct rtnl_neightbl
 struct rtnl_ratespec
 {
 	uint8_t			rs_cell_log;
-	uint16_t		rs_feature;
-	uint16_t		rs_addend;
+	uint16_t		rs_overhead;
+	int16_t			rs_cell_align;
 	uint16_t		rs_mpu;
 	uint32_t		rs_rate;
 };
@@ -450,14 +453,18 @@ struct rtnl_tstats
 	uint32_t		pre ##_handle;		\
 	uint32_t		pre ##_parent;		\
 	uint32_t		pre ##_info;		\
+	uint32_t		pre ##_mtu;		\
+	uint32_t		pre ##_mpu;		\
+	uint32_t		pre ##_overhead;	\
+	uint32_t		pre ##_linktype;	\
 	char			pre ##_kind[TCKINDSIZ];	\
 	struct nl_data *	pre ##_opts;		\
 	uint64_t		pre ##_stats[RTNL_TC_STATS_MAX+1]; \
 	struct nl_data *	pre ##_xstats;		\
 	struct nl_data *	pre ##_subdata;		\
+	struct rtnl_link *	pre ##_link
 
-
-struct rtnl_tca
+struct rtnl_tc
 {
 	NL_TCA_GENERIC(tc);
 };
@@ -516,12 +523,14 @@ struct rtnl_ematch
 	uint16_t		e_id;
 	uint16_t		e_kind;
 	uint16_t		e_flags;
+	uint16_t		e_index;
+	size_t			e_datalen;
 
 	struct nl_list_head	e_childs;
 	struct nl_list_head	e_list;
 	struct rtnl_ematch_ops *e_ops;
 
-	char			e_data[0];
+	void *			e_data;
 };
 
 struct rtnl_ematch_tree
@@ -562,7 +571,6 @@ struct rtnl_prio
 struct rtnl_tbf
 {
 	uint32_t		qt_limit;
-	uint32_t		qt_mpu;
 	struct rtnl_ratespec	qt_rate;
 	uint32_t		qt_rate_bucket;
 	uint32_t		qt_rate_txtime;
@@ -632,14 +640,11 @@ struct rtnl_htb_qdisc
 struct rtnl_htb_class
 {
 	uint32_t		ch_prio;
-	uint32_t		ch_mtu;
 	struct rtnl_ratespec	ch_rate;
 	struct rtnl_ratespec	ch_ceil;
 	uint32_t		ch_rbuffer;
 	uint32_t		ch_cbuffer;
 	uint32_t		ch_quantum;
-	uint8_t			ch_overhead;
-	uint8_t			ch_mpu;
 	uint32_t		ch_mask;
 };
 
@@ -938,6 +943,12 @@ struct nl_dect_llme_msg {
 		struct nl_dect_llme_mac_info	lm_mi;
 		struct nl_dect_llme_mac_con	lm_mc;
 	};
+};
+
+struct ematch_quoted {
+	char *	data;
+	size_t	len;
+	int	index;
 };
 
 #endif

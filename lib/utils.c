@@ -224,6 +224,56 @@ long nl_size2int(const char *str)
 	return l;
 }
 
+static const struct {
+	double limit;
+	const char *unit;
+} size_units[] = {
+	{ 1024. * 1024. * 1024. * 1024. * 1024., "EiB" },
+	{ 1024. * 1024. * 1024. * 1024., "TiB" },
+	{ 1024. * 1024. * 1024., "GiB" },
+	{ 1024. * 1024., "MiB" },
+	{ 1024., "KiB" },
+	{ 0., "B" },
+};
+
+/**
+ * Convert a size toa character string
+ * @arg size		Size in number of bytes
+ * @arg buf		Buffer to write character string to
+ * @arg len		Size of buf
+ *
+ * This function converts a value in bytes to a human readable representation
+ * of it. The function uses IEC prefixes:
+ *
+ * @code
+ * 1024 bytes => 1 KiB
+ * 1048576 bytes => 1 MiB
+ * @endcode
+ *
+ * The highest prefix is used which ensures a result of >= 1.0, the result
+ * is provided as floating point number with a maximum precision of 2 digits:
+ * @code
+ * 965176 bytes => 942.55 KiB
+ * @endcode
+ *
+ * @return pointer to buf
+ */
+char *nl_size2str(const size_t size, char *buf, const size_t len)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(size_units); i++) {
+		if (size >= size_units[i].limit) {
+			snprintf(buf, len, "%.2g%s",
+				(double) size / size_units[i].limit,
+				size_units[i].unit);
+			return buf;
+		}
+	}
+
+	BUG();
+}
+
 /**
  * Convert a character string to a probability
  * @arg str		probability encoded as character string
@@ -313,11 +363,15 @@ static void __init get_psched_settings(void)
 			strncpy(name, "/proc/net/psched", sizeof(name) - 1);
 		
 		if ((fd = fopen(name, "r"))) {
-			uint32_t tick, us;
+			uint32_t ns_per_usec, ns_per_tick;
 			/* the file contains 4 hexadecimals, but we just use
 			   the first two of them */
-			fscanf(fd, "%08x %08x", &tick, &us);
-			ticks_per_usec = (double)tick/(double)us;
+			fscanf(fd, "%08x %08x", &ns_per_usec, &ns_per_tick);
+
+			ticks_per_usec = (double) ns_per_usec / 
+					 (double) ns_per_tick;
+
+
 			fclose(fd);
 		}
 	}
@@ -327,7 +381,7 @@ static void __init get_psched_settings(void)
 /**
  * Return the value of HZ
  */
-int nl_get_hz(void)
+int nl_get_user_hz(void)
 {
 	return user_hz;
 }
@@ -436,7 +490,7 @@ char * nl_msec2str(uint64_t msec, char *buf, size_t len)
  * @{
  */
 
-static struct trans_tbl nlfamilies[] = {
+static const struct trans_tbl nlfamilies[] = {
 	__ADD(NETLINK_ROUTE,route)
 	__ADD(NETLINK_USERSOCK,usersock)
 	__ADD(NETLINK_FIREWALL,firewall)
@@ -477,7 +531,7 @@ int nl_str2nlfamily(const char *name)
  * @{
  */
 
-static struct trans_tbl llprotos[] = {
+static const struct trans_tbl llprotos[] = {
 	{0, "generic"},
 	__ADD(ARPHRD_ETHER,ether)
 	__ADD(ARPHRD_EETHER,eether)
@@ -506,6 +560,7 @@ static struct trans_tbl llprotos[] = {
 #ifdef ARPHRD_HWX25
 	__ADD(ARPHRD_HWX25,hwx25)
 #endif
+	__ADD(ARPHRD_CAN,can)
 	__ADD(ARPHRD_PPP,ppp)
 	__ADD(ARPHRD_HDLC,hdlc)
 	__ADD(ARPHRD_LAPB,lapb)
@@ -545,6 +600,8 @@ static struct trans_tbl llprotos[] = {
 	__ADD(ARPHRD_FCFABRIC+12,fcfb_12)
 	__ADD(ARPHRD_IEEE802_TR,tr)
 	__ADD(ARPHRD_IEEE80211,ieee802.11)
+	__ADD(ARPHRD_PHONET,phonet)
+	__ADD(ARPHRD_CAIF, caif)
 #ifdef ARPHRD_IEEE80211_PRISM
 	__ADD(ARPHRD_IEEE80211_PRISM, ieee802.11_prism)
 #endif
@@ -571,7 +628,7 @@ int nl_str2llproto(const char *name)
  * @{
  */
 
-static struct trans_tbl ether_protos[] = {
+static const struct trans_tbl ether_protos[] = {
 	__ADD(ETH_P_LOOP,loop)
 	__ADD(ETH_P_PUP,pup)
 	__ADD(ETH_P_PUPAT,pupat)
@@ -589,6 +646,7 @@ static struct trans_tbl ether_protos[] = {
 	__ADD(ETH_P_DIAG,diag)
 	__ADD(ETH_P_CUST,cust)
 	__ADD(ETH_P_SCA,sca)
+	__ADD(ETH_P_TEB,teb)
 	__ADD(ETH_P_RARP,rarp)
 	__ADD(ETH_P_ATALK,atalk)
 	__ADD(ETH_P_AARP,aarp)
@@ -597,6 +655,8 @@ static struct trans_tbl ether_protos[] = {
 #endif
 	__ADD(ETH_P_IPX,ipx)
 	__ADD(ETH_P_IPV6,ipv6)
+	__ADD(ETH_P_PAUSE,pause)
+	__ADD(ETH_P_SLOW,slow)
 #ifdef ETH_P_WCCP
 	__ADD(ETH_P_WCCP,wccp)
 #endif
@@ -606,6 +666,13 @@ static struct trans_tbl ether_protos[] = {
 	__ADD(ETH_P_MPLS_MC,mpls_mc)
 	__ADD(ETH_P_ATMMPOA,atmmpoa)
 	__ADD(ETH_P_ATMFATE,atmfate)
+	__ADD(ETH_P_PAE,pae)
+	__ADD(ETH_P_AOE,aoe)
+	__ADD(ETH_P_TIPC,tipc)
+	__ADD(ETH_P_1588,ieee1588)
+	__ADD(ETH_P_FCOE,fcoe)
+	__ADD(ETH_P_FIP,fip)
+	__ADD(ETH_P_EDSA,edsa)
 	__ADD(ETH_P_EDP2,edp2)
 	__ADD(ETH_P_802_3,802.3)
 	__ADD(ETH_P_AX25,ax25)
@@ -616,6 +683,7 @@ static struct trans_tbl ether_protos[] = {
 	__ADD(ETH_P_WAN_PPP,wan_ppp)
 	__ADD(ETH_P_PPP_MP,ppp_mp)
 	__ADD(ETH_P_LOCALTALK,localtalk)
+	__ADD(ETH_P_CAN,can)
 	__ADD(ETH_P_PPPTALK,ppptalk)
 	__ADD(ETH_P_TR_802_2,tr_802.2)
 	__ADD(ETH_P_MOBITEX,mobitex)
@@ -623,6 +691,12 @@ static struct trans_tbl ether_protos[] = {
 	__ADD(ETH_P_IRDA,irda)
 	__ADD(ETH_P_ECONET,econet)
 	__ADD(ETH_P_HDLC,hdlc)
+	__ADD(ETH_P_ARCNET,arcnet)
+	__ADD(ETH_P_DSA,dsa)
+	__ADD(ETH_P_TRAILER,trailer)
+	__ADD(ETH_P_PHONET,phonet)
+	__ADD(ETH_P_IEEE802154,ieee802154)
+	__ADD(ETH_P_CAIF,caif)
 };
 
 char *nl_ether_proto2str(int eproto, char *buf, size_t len)
@@ -787,8 +861,8 @@ void __trans_list_clear(struct nl_list_head *head)
 	}
 }
 
-char *__type2str(int type, char *buf, size_t len, struct trans_tbl *tbl,
-		 size_t tbl_len)
+char *__type2str(int type, char *buf, size_t len,
+		 const struct trans_tbl *tbl, size_t tbl_len)
 {
 	int i;
 	for (i = 0; i < tbl_len; i++) {
@@ -819,7 +893,7 @@ char *__list_type2str(int type, char *buf, size_t len,
 }
 
 char *__flags2str(int flags, char *buf, size_t len,
-		  struct trans_tbl *tbl, size_t tbl_len)
+		  const struct trans_tbl *tbl, size_t tbl_len)
 {
 	int i;
 	int tmp = flags;
@@ -838,7 +912,7 @@ char *__flags2str(int flags, char *buf, size_t len,
 	return buf;
 }
 
-int __str2type(const char *buf, struct trans_tbl *tbl, size_t tbl_len)
+int __str2type(const char *buf, const struct trans_tbl *tbl, size_t tbl_len)
 {
 	unsigned long l;
 	char *end;
@@ -879,7 +953,7 @@ int __list_str2type(const char *buf, struct nl_list_head *head)
 	return (int) l;
 }
 
-int __str2flags(const char *buf, struct trans_tbl *tbl, size_t tbl_len)
+int __str2flags(const char *buf, const struct trans_tbl *tbl, size_t tbl_len)
 {
 	int i, flags = 0, len;
 	char *p = (char *) buf, *t;

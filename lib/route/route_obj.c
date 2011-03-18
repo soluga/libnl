@@ -284,73 +284,8 @@ static void route_dump_stats(struct nl_object *obj, struct nl_dump_params *p)
 		nl_dump_line(p, "    used %u refcnt %u last-use %us "
 				"expires %us\n",
 			     ci->rtci_used, ci->rtci_clntref,
-			     ci->rtci_last_use / nl_get_hz(),
-			     ci->rtci_expires / nl_get_hz());
-	}
-}
-
-static void route_dump_env(struct nl_object *obj, struct nl_dump_params *p)
-{
-	struct rtnl_route *route = (struct rtnl_route *) obj;
-	struct nl_cache *link_cache;
-	char buf[128];
-
-	link_cache = nl_cache_mngt_require("route/link");
-
-	nl_dump_line(p, "ROUTE_FAMILY=%s\n",
-		     nl_af2str(route->rt_family, buf, sizeof(buf)));
-
-	if (route->ce_mask & ROUTE_ATTR_DST)
-		nl_dump_line(p, "ROUTE_DST=%s\n",
-			     nl_addr2str(route->rt_dst, buf, sizeof(buf)));
-
-	if (route->ce_mask & ROUTE_ATTR_SRC)
-		nl_dump_line(p, "ROUTE_SRC=%s\n",
-			     nl_addr2str(route->rt_src, buf, sizeof(buf)));
-
-	if (route->ce_mask & ROUTE_ATTR_PREF_SRC)
-		nl_dump_line(p, "ROUTE_PREFSRC=%s\n",
-			     nl_addr2str(route->rt_pref_src, buf, sizeof(buf)));
-
-	if (route->ce_mask & ROUTE_ATTR_IIF) {
-		if (link_cache) {
-			nl_dump_line(p, "ROUTE_IIF=%s",
-				rtnl_link_i2name(link_cache, route->rt_iif,
-						 buf, sizeof(buf)));
-		} else
-			nl_dump_line(p, "ROUTE_IIF=%d", route->rt_iif);
-	}
-
-	if (route->ce_mask & ROUTE_ATTR_TOS)
-		nl_dump_line(p, "ROUTE_TOS=%u\n", route->rt_tos);
-
-	if (route->ce_mask & ROUTE_ATTR_TABLE)
-		nl_dump_line(p, "ROUTE_TABLE=%u\n",
-			     route->rt_table);
-
-	if (route->ce_mask & ROUTE_ATTR_SCOPE)
-		nl_dump_line(p, "ROUTE_SCOPE=%s\n",
-			     rtnl_scope2str(route->rt_scope, buf, sizeof(buf)));
-
-	if (route->ce_mask & ROUTE_ATTR_PRIO)
-		nl_dump_line(p, "ROUTE_PRIORITY=%u\n",
-			     route->rt_prio);
-
-	if (route->ce_mask & ROUTE_ATTR_TYPE)
-		nl_dump_line(p, "ROUTE_TYPE=%s\n",
-			     nl_rtntype2str(route->rt_type, buf, sizeof(buf)));
-
-	if (route->ce_mask & ROUTE_ATTR_MULTIPATH) {
-		struct rtnl_nexthop *nh;
-		int index = 1;
-
-		if (route->rt_nr_nh > 0)
-			nl_dump_line(p, "ROUTE_NR_NH=%u\n", route->rt_nr_nh);
-
-		nl_list_for_each_entry(nh, &route->rt_nexthops, rtnh_list) {
-			p->dp_ivar = index++;
-			rtnl_route_nh_dump(nh, p);
-		}
+			     ci->rtci_last_use / nl_get_user_hz(),
+			     ci->rtci_expires / nl_get_user_hz());
 	}
 }
 
@@ -455,7 +390,7 @@ nh_mismatch:
 #undef ROUTE_DIFF
 }
 
-static struct trans_tbl route_attrs[] = {
+static const struct trans_tbl route_attrs[] = {
 	__ADD(ROUTE_ATTR_FAMILY, family)
 	__ADD(ROUTE_ATTR_TOS, tos)
 	__ADD(ROUTE_ATTR_TABLE, table)
@@ -1185,7 +1120,6 @@ struct nl_object_ops route_obj_ops = {
 	    [NL_DUMP_LINE]	= route_dump_line,
 	    [NL_DUMP_DETAILS]	= route_dump_details,
 	    [NL_DUMP_STATS]	= route_dump_stats,
-	    [NL_DUMP_ENV]	= route_dump_env,
 	},
 	.oo_compare		= route_compare,
 	.oo_attrs2str		= route_attrs2str,

@@ -6,7 +6,7 @@
  *	License as published by the Free Software Foundation version 2.1
  *	of the License.
  *
- * Copyright (c) 2003-2008 Thomas Graf <tgraf@suug.ch>
+ * Copyright (c) 2003-2010 Thomas Graf <tgraf@suug.ch>
  */
 
 #ifndef NETLINK_LINK_H_
@@ -44,8 +44,42 @@ enum rtnl_link_st {
 	RTNL_LINK_TX_CARRIER_ERR,
 	RTNL_LINK_TX_HBEAT_ERR,
 	RTNL_LINK_TX_WIN_ERR,
-	RTNL_LINK_TX_COLLISIONS,
+	RTNL_LINK_COLLISIONS,
 	RTNL_LINK_MULTICAST,
+	RTNL_LINK_IP6_INPKTS,			/* InReceives */
+	RTNL_LINK_IP6_INHDRERRORS,		/* InHdrErrors */
+	RTNL_LINK_IP6_INTOOBIGERRORS,		/* InTooBigErrors */
+	RTNL_LINK_IP6_INNOROUTES,		/* InNoRoutes */
+	RTNL_LINK_IP6_INADDRERRORS,		/* InAddrErrors */
+	RTNL_LINK_IP6_INUNKNOWNPROTOS,		/* InUnknownProtos */
+	RTNL_LINK_IP6_INTRUNCATEDPKTS,		/* InTruncatedPkts */
+	RTNL_LINK_IP6_INDISCARDS,		/* InDiscards */
+	RTNL_LINK_IP6_INDELIVERS,		/* InDelivers */
+	RTNL_LINK_IP6_OUTFORWDATAGRAMS,		/* OutForwDatagrams */
+	RTNL_LINK_IP6_OUTPKTS,			/* OutRequests */
+	RTNL_LINK_IP6_OUTDISCARDS,		/* OutDiscards */
+	RTNL_LINK_IP6_OUTNOROUTES,		/* OutNoRoutes */
+	RTNL_LINK_IP6_REASMTIMEOUT,		/* ReasmTimeout */
+	RTNL_LINK_IP6_REASMREQDS,		/* ReasmReqds */
+	RTNL_LINK_IP6_REASMOKS,			/* ReasmOKs */
+	RTNL_LINK_IP6_REASMFAILS,		/* ReasmFails */
+	RTNL_LINK_IP6_FRAGOKS,			/* FragOKs */
+	RTNL_LINK_IP6_FRAGFAILS,		/* FragFails */
+	RTNL_LINK_IP6_FRAGCREATES,		/* FragCreates */
+	RTNL_LINK_IP6_INMCASTPKTS,		/* InMcastPkts */
+	RTNL_LINK_IP6_OUTMCASTPKTS,		/* OutMcastPkts */
+	RTNL_LINK_IP6_INBCASTPKTS,		/* InBcastPkts */
+	RTNL_LINK_IP6_OUTBCASTPKTS,		/* OutBcastPkts */
+	RTNL_LINK_IP6_INOCTETS,			/* InOctets */
+	RTNL_LINK_IP6_OUTOCTETS,		/* OutOctets */
+	RTNL_LINK_IP6_INMCASTOCTETS,		/* InMcastOctets */
+	RTNL_LINK_IP6_OUTMCASTOCTETS,		/* OutMcastOctets */
+	RTNL_LINK_IP6_INBCASTOCTETS,		/* InBcastOctets */
+	RTNL_LINK_IP6_OUTBCASTOCTETS,		/* OutBcastOctets */
+	RTNL_LINK_ICMP6_INMSGS,			/* InMsgs */
+	RTNL_LINK_ICMP6_INERRORS,		/* InErrors */
+	RTNL_LINK_ICMP6_OUTMSGS,		/* OutMsgs */
+	RTNL_LINK_ICMP6_OUTERRORS,		/* OutErrors */
 	__RTNL_LINK_STATS_MAX,
 };
 
@@ -57,7 +91,7 @@ extern void	rtnl_link_put(struct rtnl_link *);
 extern void	rtnl_link_free(struct rtnl_link *);
 
 /* link cache management */
-extern int	rtnl_link_alloc_cache(struct nl_sock *, struct nl_cache **);
+extern int	rtnl_link_alloc_cache(struct nl_sock *, int, struct nl_cache **);
 extern struct rtnl_link *rtnl_link_get(struct nl_cache *, int);
 extern struct rtnl_link *rtnl_link_get_by_name(struct nl_cache *, const char *);
 
@@ -133,7 +167,14 @@ extern uint8_t	rtnl_link_get_operstate(struct rtnl_link *);
 extern void	rtnl_link_set_linkmode(struct rtnl_link *, uint8_t);
 extern uint8_t	rtnl_link_get_linkmode(struct rtnl_link *);
 
+extern const char *	rtnl_link_get_ifalias(struct rtnl_link *);
+extern void		rtnl_link_set_ifalias(struct rtnl_link *, const char *);
+
+extern int		rtnl_link_get_num_vf(struct rtnl_link *, uint32_t *);
+
 extern uint64_t rtnl_link_get_stat(struct rtnl_link *, int);
+extern int	rtnl_link_set_stat(struct rtnl_link *, const unsigned int,
+				   const uint64_t);
 
 extern int	rtnl_link_set_info_type(struct rtnl_link *, const char *);
 extern char *	rtnl_link_get_info_type(struct rtnl_link *);

@@ -6,11 +6,11 @@
  *	License as published by the Free Software Foundation version 2.1
  *	of the License.
  *
- * Copyright (c) 2003-2008 Thomas Graf <tgraf@suug.ch>
+ * Copyright (c) 2003-2010 Thomas Graf <tgraf@suug.ch>
  */
 
 /**
- * @ingroup link_info
+ * @ingroup link_api
  * @defgroup vlan VLAN
  * @brief
  *
@@ -23,7 +23,7 @@
 #include <netlink/utils.h>
 #include <netlink/object.h>
 #include <netlink/route/rtnl.h>
-#include <netlink/route/link/info-api.h>
+#include <netlink/route/link/api.h>
 #include <netlink/route/link/vlan.h>
 
 #include <linux/if_vlan.h>
@@ -47,7 +47,7 @@ struct vlan_info
 };
 /** @endcond */
 
-static struct trans_tbl vlan_flags[] = {
+static const struct trans_tbl vlan_flags[] = {
 	__ADD(VLAN_FLAG_REORDER_HDR, reorder_hdr)
 };
 

@@ -6,7 +6,7 @@
  *	License as published by the Free Software Foundation version 2.1
  *	of the License.
  *
- * Copyright (c) 2003-2008 Thomas Graf <tgraf@suug.ch>
+ * Copyright (c) 2003-2010 Thomas Graf <tgraf@suug.ch>
  * Copyright (c) 2005-2006 Petr Gotthard <petr.gotthard@siemens.com>
  * Copyright (c) 2005-2006 Siemens AG Oesterreich
  */
@@ -36,14 +36,11 @@
 #define SCH_HTB_HAS_DEFCLS		0x02
 
 #define SCH_HTB_HAS_PRIO		0x001
-#define SCH_HTB_HAS_MTU			0x002
-#define SCH_HTB_HAS_RATE		0x004
-#define SCH_HTB_HAS_CEIL		0x008
-#define SCH_HTB_HAS_RBUFFER		0x010
-#define SCH_HTB_HAS_CBUFFER		0x020
-#define SCH_HTB_HAS_QUANTUM		0x040
-#define SCH_HTB_HAS_OVERHEAD		0x080
-#define SCH_HTB_HAS_MPU			0x100
+#define SCH_HTB_HAS_RATE		0x002
+#define SCH_HTB_HAS_CEIL		0x004
+#define SCH_HTB_HAS_RBUFFER		0x008
+#define SCH_HTB_HAS_CBUFFER		0x010
+#define SCH_HTB_HAS_QUANTUM		0x020
 /** @endcond */
 
 static inline struct rtnl_htb_qdisc *htb_qdisc(struct rtnl_qdisc *qdisc)
@@ -65,7 +62,7 @@ static int htb_qdisc_msg_parser(struct rtnl_qdisc *qdisc)
 	struct nlattr *tb[TCA_HTB_MAX + 1];
 	struct rtnl_htb_qdisc *d;
 
-	err = tca_parse(tb, TCA_HTB_MAX, (struct rtnl_tca *) qdisc, htb_policy);
+	err = tca_parse(tb, TCA_HTB_MAX, (struct rtnl_tc *) qdisc, htb_policy);
 	if (err < 0)
 		return err;
 	
@@ -102,8 +99,9 @@ static int htb_class_msg_parser(struct rtnl_class *class)
 	int err;
 	struct nlattr *tb[TCA_HTB_MAX + 1];
 	struct rtnl_htb_class *d;
+	struct rtnl_tc *tc = (struct rtnl_tc *) class;
 
-	err = tca_parse(tb, TCA_HTB_MAX, (struct rtnl_tca *) class, htb_policy);
+	err = tca_parse(tb, TCA_HTB_MAX, (struct rtnl_tc *) class, htb_policy);
 	if (err < 0)
 		return err;
 	
@@ -119,13 +117,13 @@ static int htb_class_msg_parser(struct rtnl_class *class)
 		d->ch_rbuffer = rtnl_tc_calc_bufsize(opts.buffer, opts.rate.rate);
 		d->ch_cbuffer = rtnl_tc_calc_bufsize(opts.cbuffer, opts.ceil.rate);
 		d->ch_quantum = opts.quantum;
-		d->ch_overhead = (opts.rate.mpu >> 8) & 0xff;
-		d->ch_mpu = opts.rate.mpu & 0xff;
+
+		rtnl_tc_set_mpu(tc, d->ch_rate.rs_mpu);
+		rtnl_tc_set_overhead(tc, d->ch_rate.rs_overhead);
 
 		d->ch_mask = (SCH_HTB_HAS_PRIO | SCH_HTB_HAS_RATE |
 			SCH_HTB_HAS_CEIL | SCH_HTB_HAS_RBUFFER |
-			SCH_HTB_HAS_CBUFFER | SCH_HTB_HAS_QUANTUM |
-			SCH_HTB_HAS_OVERHEAD | SCH_HTB_HAS_MPU);
+			SCH_HTB_HAS_CBUFFER | SCH_HTB_HAS_QUANTUM);
 	}
 
 	return 0;
@@ -197,9 +195,6 @@ static void htb_class_dump_details(struct rtnl_class *class,
 	if (d->ch_mask & SCH_HTB_HAS_PRIO)
 		nl_dump(p, " prio %u", d->ch_prio);
 
-	if (d->ch_mask & SCH_HTB_HAS_MTU)
-		nl_dump(p, " mtu %u", d->ch_mtu);
-
 	if (d->ch_mask & SCH_HTB_HAS_RBUFFER) {
 		double b;
 		char *bu;
@@ -218,12 +213,6 @@ static void htb_class_dump_details(struct rtnl_class *class,
 
 	if (d->ch_mask & SCH_HTB_HAS_QUANTUM)
 		nl_dump(p, " quantum %u", d->ch_quantum);
-
-	if (d->ch_mask & SCH_HTB_HAS_OVERHEAD)
-		nl_dump(p, " overhead %u", d->ch_overhead);
-
-	if (d->ch_mask & SCH_HTB_HAS_MPU)
-		nl_dump(p, " mpu %u", d->ch_mpu);
 }
 
 static struct nl_msg *htb_qdisc_get_opts(struct rtnl_qdisc *qdisc)
@@ -232,35 +221,24 @@ static struct nl_msg *htb_qdisc_get_opts(struct rtnl_qdisc *qdisc)
 	struct tc_htb_glob opts;
 	struct nl_msg *msg;
 
-	if (d == NULL)
-		return NULL;
-
 	msg = nlmsg_alloc();
 	if (msg == NULL)
 		return NULL;
 
 	memset(&opts, 0, sizeof(opts));
 	opts.version = TC_HTB_PROTOVER;
+	opts.rate2quantum = 10;
 
-	if (d->qh_mask & SCH_HTB_HAS_RATE2QUANTUM)
-		opts.rate2quantum = d->qh_rate2quantum;
-	if (d->qh_mask & SCH_HTB_HAS_DEFCLS)
-		opts.defcls = d->qh_defcls;
+	if (d) {
+		if (d->qh_mask & SCH_HTB_HAS_RATE2QUANTUM)
+			opts.rate2quantum = d->qh_rate2quantum;
+		if (d->qh_mask & SCH_HTB_HAS_DEFCLS)
+			opts.defcls = d->qh_defcls;
+	}
 
 	nla_put(msg, TCA_HTB_INIT, sizeof(opts), &opts);
 
 	return msg;
-}
-
-static uint8_t compute_cell(uint32_t rate, uint32_t mtu)
-{
-	uint8_t cell_log = 0;
-	while (mtu > 255) {
-		mtu >>= 1;
-		cell_log++;
-	}
-
-	return cell_log;
 }
 
 static struct nl_msg *htb_class_get_opts(struct rtnl_class *class)
@@ -270,76 +248,58 @@ static struct nl_msg *htb_class_get_opts(struct rtnl_class *class)
 	struct tc_htb_opt opts;
 	struct nl_msg *msg;
 	int buffer, cbuffer;
-	uint8_t overhead = 0, mpu = 0;
 
 	if (d == NULL)
 		return NULL;
 
+	if (!(d->ch_mask & SCH_HTB_HAS_RATE))
+		BUG();
+
 	msg = nlmsg_alloc();
+	if (!msg)
+		return NULL;
+
 	memset(&opts, 0, sizeof(opts));
 
 	/* if not set, zero (0) is used as priority */
 	if (d->ch_mask & SCH_HTB_HAS_PRIO)
 		opts.prio = d->ch_prio;
 
-	if (d->ch_mask & SCH_HTB_HAS_MTU)
-		mtu = d->ch_mtu;
-	else
-		mtu = 1600; /* eth packet len */
+	mtu = rtnl_tc_get_mtu((struct rtnl_tc *) class);
 
-	if (!(d->ch_mask & SCH_HTB_HAS_RATE))
-		BUG();
-
+	rtnl_tc_build_rate_table((struct rtnl_tc *) class, &d->ch_rate, rtable);
 	rtnl_rcopy_ratespec(&opts.rate, &d->ch_rate);
-	/* if cell_log not set, compute default value */
-	if (opts.rate.cell_log == UINT8_MAX)
-		opts.rate.cell_log = compute_cell(opts.rate.rate, mtu);
 
-	/* if not set, configured rate is used as ceil, which implies no borrowing */
-	if (d->ch_mask & SCH_HTB_HAS_CEIL)
+	if (d->ch_mask & SCH_HTB_HAS_CEIL) {
+		rtnl_tc_build_rate_table((struct rtnl_tc *) class, &d->ch_ceil, ctable);
 		rtnl_rcopy_ratespec(&opts.ceil, &d->ch_ceil);
-	else
+	} else {
+		/*
+		 * If not set, configured rate is used as ceil, which implies
+		 * no borrowing.
+		 */
 		memcpy(&opts.ceil, &opts.rate, sizeof(struct tc_ratespec));
-	/* if cell_log not set, compute default value */
-	if (opts.ceil.cell_log == UINT8_MAX)
-		opts.ceil.cell_log = compute_cell(opts.ceil.rate, mtu);
+	}
 
 	if (d->ch_mask & SCH_HTB_HAS_RBUFFER)
 		buffer = d->ch_rbuffer;
 	else
-		buffer = opts.rate.rate / nl_get_hz() + mtu;
+		buffer = opts.rate.rate / nl_get_user_hz() + mtu; /* XXX */
 
 	opts.buffer = rtnl_tc_calc_txtime(buffer, opts.rate.rate);
 
 	if (d->ch_mask & SCH_HTB_HAS_CBUFFER)
 		cbuffer = d->ch_cbuffer;
 	else
-		cbuffer = opts.ceil.rate / nl_get_hz() + mtu;
+		cbuffer = opts.ceil.rate / nl_get_user_hz() + mtu; /* XXX */
 
 	opts.cbuffer = rtnl_tc_calc_txtime(cbuffer, opts.ceil.rate);
 
 	if (d->ch_mask & SCH_HTB_HAS_QUANTUM)
 		opts.quantum = d->ch_quantum;
 
-	if (d->ch_mask & SCH_HTB_HAS_OVERHEAD)
-		overhead = d->ch_overhead;
-
-	if (d->ch_mask & SCH_HTB_HAS_MPU)
-		mpu = d->ch_mpu;
-	
-	opts.rate.mpu = mpu | (overhead << 8);
-	opts.ceil.mpu = mpu | (overhead << 8);
-
 	nla_put(msg, TCA_HTB_PARMS, sizeof(opts), &opts);
-
-	rtnl_tc_build_rate_table(rtable, mpu, overhead,
-				 1 << opts.rate.cell_log,
-				 opts.rate.rate);
 	nla_put(msg, TCA_HTB_RTAB, sizeof(rtable), &rtable);
-
-	rtnl_tc_build_rate_table(ctable, mpu, overhead,
-				 1 << opts.ceil.cell_log,
-				 opts.ceil.rate);
 	nla_put(msg, TCA_HTB_CTAB, sizeof(ctable), &ctable);
 
 	return msg;
@@ -383,24 +343,6 @@ void rtnl_htb_set_prio(struct rtnl_class *class, uint32_t prio)
 
 	d->ch_prio = prio;
 	d->ch_mask |= SCH_HTB_HAS_PRIO;
-}
-
-/**
- * Set MTU of the data link.
- * @arg class		HTB class to be modified.
- * @arg mtu		New MTU in bytes.
- *
- * Sets MTU of the data link controlled by the HTB class.
- * If not set, the Ethernet MTU (1600) is used.
- */
-void rtnl_htb_set_mtu(struct rtnl_class *class, uint32_t mtu)
-{
-	struct rtnl_htb_class *d = htb_class(class);
-	if (d == NULL)
-		return;
-
-	d->ch_mtu = mtu;
-	d->ch_mask |= SCH_HTB_HAS_MTU;
 }
 
 /**
@@ -478,36 +420,6 @@ void rtnl_htb_set_quantum(struct rtnl_class *class, uint32_t quantum)
 
 	d->ch_quantum = quantum;
 	d->ch_mask |= SCH_HTB_HAS_QUANTUM;
-}
-
-/**
- * Set per-packet size overhead used in rate computations of HTB class.
- * @arg class		HTB class to be modified.
- * @arg overhead		Size in bytes.
- */
-void rtnl_htb_set_overhead(struct rtnl_class *class, uint8_t overhead)
-{
-	struct rtnl_htb_class *d = htb_class(class);
-	if (d == NULL)
-		return;
-
-	d->ch_overhead = overhead;
-	d->ch_mask |= SCH_HTB_HAS_OVERHEAD;
-}
-
-/**
- * Set the minimum packet size used in rate computations of HTB class.
- * @arg class		HTB class to be modified.
- * @arg mpu		Size in bytes.
- */
-void rtnl_htb_set_mpu(struct rtnl_class *class, uint8_t mpu)
-{
-	struct rtnl_htb_class *d = htb_class(class);
-	if (d == NULL)
-		return;
-
-	d->ch_mpu = mpu;
-	d->ch_mask |= SCH_HTB_HAS_MPU;
 }
 
 /** @} */

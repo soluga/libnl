@@ -28,6 +28,7 @@
 #include <inttypes.h>
 #include <assert.h>
 #include <limits.h>
+#include <search.h>
 
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -46,6 +47,10 @@
 #include <linux/pkt_cls.h>
 #include <linux/gen_stats.h>
 #include <linux/ip_mp_alg.h>
+#include <linux/atm.h>
+#include <linux/inetdevice.h>
+#include <linux/ipv6.h>
+#include <linux/snmp.h>
 
 #include <netlink/netlink.h>
 #include <netlink/handlers.h>
@@ -89,14 +94,14 @@ extern int __nl_read_num_str_file(const char *path,
 extern int __trans_list_add(int, const char *, struct nl_list_head *);
 extern void __trans_list_clear(struct nl_list_head *);
 
-extern char *__type2str(int, char *, size_t, struct trans_tbl *, size_t);
-extern int __str2type(const char *, struct trans_tbl *, size_t);
+extern char *__type2str(int, char *, size_t, const struct trans_tbl *, size_t);
+extern int __str2type(const char *, const struct trans_tbl *, size_t);
 
 extern char *__list_type2str(int, char *, size_t, struct nl_list_head *);
 extern int __list_str2type(const char *, struct nl_list_head *);
 
-extern char *__flags2str(int, char *, size_t, struct trans_tbl *, size_t);
-extern int __str2flags(const char *, struct trans_tbl *, size_t);
+extern char *__flags2str(int, char *, size_t, const struct trans_tbl *, size_t);
+extern int __str2flags(const char *, const struct trans_tbl *, size_t);
 
 extern void dump_from_ops(struct nl_object *, struct nl_dump_params *);
 
@@ -146,8 +151,8 @@ static inline void rtnl_copy_ratespec(struct rtnl_ratespec *dst,
 				      struct tc_ratespec *src)
 {
 	dst->rs_cell_log = src->cell_log;
-	dst->rs_feature = src->feature;
-	dst->rs_addend = src->addend;
+	dst->rs_overhead = src->overhead;
+	dst->rs_cell_align = src->cell_align;
 	dst->rs_mpu = src->mpu;
 	dst->rs_rate = src->rate;
 }
@@ -156,8 +161,8 @@ static inline void rtnl_rcopy_ratespec(struct tc_ratespec *dst,
 				       struct rtnl_ratespec *src)
 {
 	dst->cell_log = src->rs_cell_log;
-	dst->feature = src->rs_feature;
-	dst->addend = src->rs_addend;
+	dst->overhead = src->rs_overhead;
+	dst->cell_align = src->rs_cell_align;
 	dst->mpu = src->rs_mpu;
 	dst->rate = src->rs_rate;
 }

@@ -6,7 +6,7 @@
  *	License as published by the Free Software Foundation version 2.1
  *	of the License.
  *
- * Copyright (c) 2003-2008 Thomas Graf <tgraf@suug.ch>
+ * Copyright (c) 2003-2010 Thomas Graf <tgraf@suug.ch>
  */
 
 /**
@@ -112,7 +112,7 @@
  * // Two ways exist to commit this change request, the first one is to
  * // build the required netlink message and send it out in one single
  * // step:
- * rtnl_link_change(sk, old, request);
+ * rtnl_link_change(sk, old, request, 0);
  *
  * // An alternative way is to build the netlink message and send it
  * // out yourself using nl_send_auto_complete()
@@ -154,7 +154,7 @@
 #include <netlink/object.h>
 #include <netlink/route/rtnl.h>
 #include <netlink/route/link.h>
-#include <netlink/route/link/info-api.h>
+#include <netlink/route/link/api.h>
 
 /** @cond SKIP */
 #define LINK_ATTR_MTU     0x0001
@@ -176,18 +176,135 @@
 #define LINK_ATTR_OPERSTATE 0x10000
 #define LINK_ATTR_LINKMODE  0x20000
 #define LINK_ATTR_LINKINFO  0x40000
+#define LINK_ATTR_IFALIAS   0x80000
+#define LINK_ATTR_NUM_VF   0x100000
 
 static struct nl_cache_ops rtnl_link_ops;
 static struct nl_object_ops link_obj_ops;
 /** @endcond */
+
+static struct rtnl_link_af_ops *af_lookup_and_alloc(struct rtnl_link *link,
+						    int family)
+{
+	struct rtnl_link_af_ops *af_ops;
+	void *data;
+
+	af_ops = rtnl_link_af_ops_lookup(family);
+	if (!af_ops)
+		return NULL;
+
+	if (!(data = rtnl_link_af_alloc(link, af_ops)))
+		return NULL;
+
+	return af_ops;
+}
+
+static int af_free(struct rtnl_link *link, struct rtnl_link_af_ops *ops,
+		    void *data, void *arg)
+{
+	if (ops->ao_free)
+		ops->ao_free(link, data);
+
+	rtnl_link_af_ops_put(ops);
+
+	return 0;
+}
+
+static int af_clone(struct rtnl_link *link, struct rtnl_link_af_ops *ops,
+		    void *data, void *arg)
+{
+	struct rtnl_link *dst = arg;
+
+	if (ops->ao_clone &&
+	    !(dst->l_af_data[ops->ao_family] = ops->ao_clone(link, data)))
+		return -NLE_NOMEM;
+
+	return 0;
+}
+
+static int af_fill(struct rtnl_link *link, struct rtnl_link_af_ops *ops,
+		   void *data, void *arg)
+{
+	struct nl_msg *msg = arg;
+	struct nlattr *af_attr;
+	int err;
+
+	if (!ops->ao_fill_af)
+		return 0;
+
+	if (!(af_attr = nla_nest_start(msg, ops->ao_family)))
+		return -NLE_MSGSIZE;
+
+	if ((err = ops->ao_fill_af(link, arg, data)) < 0)
+		return err;
+
+	nla_nest_end(msg, af_attr);
+
+	return 0;
+}
+
+static int af_dump_line(struct rtnl_link *link, struct rtnl_link_af_ops *ops,
+			 void *data, void *arg)
+{
+	struct nl_dump_params *p = arg;
+
+	if (ops->ao_dump[NL_DUMP_LINE])
+		ops->ao_dump[NL_DUMP_LINE](link, p, data);
+
+	return 0;
+}
+
+static int af_dump_details(struct rtnl_link *link, struct rtnl_link_af_ops *ops,
+			   void *data, void *arg)
+{
+	struct nl_dump_params *p = arg;
+
+	if (ops->ao_dump[NL_DUMP_DETAILS])
+		ops->ao_dump[NL_DUMP_DETAILS](link, p, data);
+
+	return 0;
+}
+
+static int af_dump_stats(struct rtnl_link *link, struct rtnl_link_af_ops *ops,
+			 void *data, void *arg)
+{
+	struct nl_dump_params *p = arg;
+
+	if (ops->ao_dump[NL_DUMP_STATS])
+		ops->ao_dump[NL_DUMP_STATS](link, p, data);
+
+	return 0;
+}
+
+static int do_foreach_af(struct rtnl_link *link,
+			 int (*cb)(struct rtnl_link *,
+			 	   struct rtnl_link_af_ops *, void *, void *),
+			 void *arg)
+{
+	int i, err;
+
+	for (i = 0; i < AF_MAX; i++) {
+		if (link->l_af_data[i]) {
+			struct rtnl_link_af_ops *ops;
+
+			if (!(ops = rtnl_link_af_ops_lookup(i)))
+				BUG();
+
+			if ((err = cb(link, ops, link->l_af_data[i], arg)) < 0)
+				return err;
+		}
+	}
+
+	return 0;
+}
 
 static void release_link_info(struct rtnl_link *link)
 {
 	struct rtnl_link_info_ops *io = link->l_info_ops;
 
 	if (io != NULL) {
-		io->io_refcnt--;
 		io->io_free(link);
+		rtnl_link_info_ops_put(io);
 		link->l_info_ops = NULL;
 	}
 }
@@ -204,6 +321,10 @@ static void link_free_data(struct nl_object *c)
 
 		nl_addr_put(link->l_addr);
 		nl_addr_put(link->l_bcast);
+
+		free(link->l_ifalias);
+
+		do_foreach_af(link, af_free, NULL);
 	}
 }
 
@@ -221,11 +342,18 @@ static int link_clone(struct nl_object *_dst, struct nl_object *_src)
 		if (!(dst->l_bcast = nl_addr_clone(src->l_bcast)))
 			return -NLE_NOMEM;
 
+	if (src->l_ifalias)
+		if (!(dst->l_ifalias = strdup(src->l_ifalias)))
+			return -NLE_NOMEM;
+
 	if (src->l_info_ops && src->l_info_ops->io_clone) {
 		err = src->l_info_ops->io_clone(dst, src);
 		if (err < 0)
 			return err;
 	}
+
+	if ((err = do_foreach_af(src, af_clone, dst)) < 0)
+		return err;
 
 	return 0;
 }
@@ -244,7 +372,11 @@ static struct nla_policy link_policy[IFLA_MAX+1] = {
 	[IFLA_QDISC]	= { .type = NLA_STRING,
 			    .maxlen = IFQDISCSIZ },
 	[IFLA_STATS]	= { .minlen = sizeof(struct rtnl_link_stats) },
+	[IFLA_STATS64]	= { .minlen = sizeof(struct rtnl_link_stats64) },
 	[IFLA_MAP]	= { .minlen = sizeof(struct rtnl_link_ifmap) },
+	[IFLA_IFALIAS]	= { .type = NLA_STRING, .maxlen = IFALIASZ },
+	[IFLA_NUM_VF]	= { .type = NLA_U32 },
+	[IFLA_AF_SPEC]	= { .type = NLA_NESTED },
 };
 
 static struct nla_policy link_info_policy[IFLA_INFO_MAX+1] = {
@@ -259,7 +391,8 @@ static int link_msg_parser(struct nl_cache_ops *ops, struct sockaddr_nl *who,
 	struct rtnl_link *link;
 	struct ifinfomsg *ifi;
 	struct nlattr *tb[IFLA_MAX+1];
-	int err;
+	struct rtnl_link_af_ops *af_ops = NULL;
+	int err, family;
 
 	link = rtnl_link_alloc();
 	if (link == NULL) {
@@ -268,6 +401,27 @@ static int link_msg_parser(struct nl_cache_ops *ops, struct sockaddr_nl *who,
 	}
 		
 	link->ce_msgtype = n->nlmsg_type;
+
+	if (!nlmsg_valid_hdr(n, sizeof(*ifi)))
+		return -NLE_MSG_TOOSHORT;
+
+	ifi = nlmsg_data(n);
+	link->l_family = family = ifi->ifi_family;
+	link->l_arptype = ifi->ifi_type;
+	link->l_index = ifi->ifi_index;
+	link->l_flags = ifi->ifi_flags;
+	link->l_change = ifi->ifi_change;
+	link->ce_mask = (LINK_ATTR_IFNAME | LINK_ATTR_FAMILY |
+			  LINK_ATTR_ARPTYPE| LINK_ATTR_IFINDEX |
+			  LINK_ATTR_FLAGS | LINK_ATTR_CHANGE);
+
+	if ((af_ops = af_lookup_and_alloc(link, family))) {
+		if (af_ops->ao_protinfo_policy) {
+			memcpy(&link_policy[IFLA_PROTINFO],
+			       af_ops->ao_protinfo_policy,
+			       sizeof(struct nla_policy));
+		}
+	}
 
 	err = nlmsg_parse(n, sizeof(*ifi), tb, IFLA_MAX, link_policy);
 	if (err < 0)
@@ -280,41 +434,69 @@ static int link_msg_parser(struct nl_cache_ops *ops, struct sockaddr_nl *who,
 
 	nla_strlcpy(link->l_name, tb[IFLA_IFNAME], IFNAMSIZ);
 
-	ifi = nlmsg_data(n);
-	link->l_family = ifi->ifi_family;
-	link->l_arptype = ifi->ifi_type;
-	link->l_index = ifi->ifi_index;
-	link->l_flags = ifi->ifi_flags;
-	link->l_change = ifi->ifi_change;
-	link->ce_mask = (LINK_ATTR_IFNAME | LINK_ATTR_FAMILY |
-			  LINK_ATTR_ARPTYPE| LINK_ATTR_IFINDEX |
-			  LINK_ATTR_FLAGS | LINK_ATTR_CHANGE);
 
 	if (tb[IFLA_STATS]) {
 		struct rtnl_link_stats *st = nla_data(tb[IFLA_STATS]);
-		
+
 		link->l_stats[RTNL_LINK_RX_PACKETS]	= st->rx_packets;
-		link->l_stats[RTNL_LINK_RX_BYTES]	= st->rx_bytes;
-		link->l_stats[RTNL_LINK_RX_ERRORS]	= st->rx_errors;
-		link->l_stats[RTNL_LINK_RX_DROPPED]	= st->rx_dropped;
-		link->l_stats[RTNL_LINK_RX_COMPRESSED]	= st->rx_compressed;
-		link->l_stats[RTNL_LINK_RX_FIFO_ERR]	= st->rx_fifo_errors;
 		link->l_stats[RTNL_LINK_TX_PACKETS]	= st->tx_packets;
+		link->l_stats[RTNL_LINK_RX_BYTES]	= st->rx_bytes;
 		link->l_stats[RTNL_LINK_TX_BYTES]	= st->tx_bytes;
+		link->l_stats[RTNL_LINK_RX_ERRORS]	= st->rx_errors;
 		link->l_stats[RTNL_LINK_TX_ERRORS]	= st->tx_errors;
+		link->l_stats[RTNL_LINK_RX_DROPPED]	= st->rx_dropped;
 		link->l_stats[RTNL_LINK_TX_DROPPED]	= st->tx_dropped;
-		link->l_stats[RTNL_LINK_TX_COMPRESSED]	= st->tx_compressed;
-		link->l_stats[RTNL_LINK_TX_FIFO_ERR]	= st->tx_fifo_errors;
+		link->l_stats[RTNL_LINK_MULTICAST]	= st->multicast;
+		link->l_stats[RTNL_LINK_COLLISIONS]	= st->collisions;
+
 		link->l_stats[RTNL_LINK_RX_LEN_ERR]	= st->rx_length_errors;
 		link->l_stats[RTNL_LINK_RX_OVER_ERR]	= st->rx_over_errors;
 		link->l_stats[RTNL_LINK_RX_CRC_ERR]	= st->rx_crc_errors;
 		link->l_stats[RTNL_LINK_RX_FRAME_ERR]	= st->rx_frame_errors;
+		link->l_stats[RTNL_LINK_RX_FIFO_ERR]	= st->rx_fifo_errors;
 		link->l_stats[RTNL_LINK_RX_MISSED_ERR]	= st->rx_missed_errors;
+
 		link->l_stats[RTNL_LINK_TX_ABORT_ERR]	= st->tx_aborted_errors;
 		link->l_stats[RTNL_LINK_TX_CARRIER_ERR]	= st->tx_carrier_errors;
+		link->l_stats[RTNL_LINK_TX_FIFO_ERR]	= st->tx_fifo_errors;
 		link->l_stats[RTNL_LINK_TX_HBEAT_ERR]	= st->tx_heartbeat_errors;
 		link->l_stats[RTNL_LINK_TX_WIN_ERR]	= st->tx_window_errors;
+
+		link->l_stats[RTNL_LINK_RX_COMPRESSED]	= st->rx_compressed;
+		link->l_stats[RTNL_LINK_TX_COMPRESSED]	= st->tx_compressed;
+
+		link->ce_mask |= LINK_ATTR_STATS;
+	}
+
+	if (tb[IFLA_STATS64]) {
+		struct rtnl_link_stats64 *st = nla_data(tb[IFLA_STATS64]);
+		
+		link->l_stats[RTNL_LINK_RX_PACKETS]	= st->rx_packets;
+		link->l_stats[RTNL_LINK_TX_PACKETS]	= st->tx_packets;
+		link->l_stats[RTNL_LINK_RX_BYTES]	= st->rx_bytes;
+		link->l_stats[RTNL_LINK_TX_BYTES]	= st->tx_bytes;
+		link->l_stats[RTNL_LINK_RX_ERRORS]	= st->rx_errors;
+		link->l_stats[RTNL_LINK_TX_ERRORS]	= st->tx_errors;
+		link->l_stats[RTNL_LINK_RX_DROPPED]	= st->rx_dropped;
+		link->l_stats[RTNL_LINK_TX_DROPPED]	= st->tx_dropped;
 		link->l_stats[RTNL_LINK_MULTICAST]	= st->multicast;
+		link->l_stats[RTNL_LINK_COLLISIONS]	= st->collisions;
+
+		link->l_stats[RTNL_LINK_RX_LEN_ERR]	= st->rx_length_errors;
+		link->l_stats[RTNL_LINK_RX_OVER_ERR]	= st->rx_over_errors;
+		link->l_stats[RTNL_LINK_RX_CRC_ERR]	= st->rx_crc_errors;
+		link->l_stats[RTNL_LINK_RX_FRAME_ERR]	= st->rx_frame_errors;
+		link->l_stats[RTNL_LINK_RX_FIFO_ERR]	= st->rx_fifo_errors;
+		link->l_stats[RTNL_LINK_RX_MISSED_ERR]	= st->rx_missed_errors;
+
+		link->l_stats[RTNL_LINK_TX_ABORT_ERR]	= st->tx_aborted_errors;
+		link->l_stats[RTNL_LINK_TX_CARRIER_ERR]	= st->tx_carrier_errors;
+		link->l_stats[RTNL_LINK_TX_FIFO_ERR]	= st->tx_fifo_errors;
+		link->l_stats[RTNL_LINK_TX_HBEAT_ERR]	= st->tx_heartbeat_errors;
+		link->l_stats[RTNL_LINK_TX_WIN_ERR]	= st->tx_window_errors;
+
+		link->l_stats[RTNL_LINK_RX_COMPRESSED]	= st->rx_compressed;
+		link->l_stats[RTNL_LINK_TX_COMPRESSED]	= st->tx_compressed;
 
 		link->ce_mask |= LINK_ATTR_STATS;
 	}
@@ -388,6 +570,20 @@ static int link_msg_parser(struct nl_cache_ops *ops, struct sockaddr_nl *who,
 		link->ce_mask |= LINK_ATTR_LINKMODE;
 	}
 
+	if (tb[IFLA_IFALIAS]) {
+		link->l_ifalias = nla_strdup(tb[IFLA_IFALIAS]);
+		if (link->l_ifalias == NULL) {
+			err = -NLE_NOMEM;
+			goto errout;
+		}
+		link->ce_mask |= LINK_ATTR_IFALIAS;
+	}
+
+	if (tb[IFLA_NUM_VF]) {
+		link->l_num_vf = nla_get_u32(tb[IFLA_NUM_VF]);
+		link->ce_mask |= LINK_ATTR_NUM_VF;
+	}
+
 	if (tb[IFLA_LINKINFO]) {
 		struct nlattr *li[IFLA_INFO_MAX+1];
 
@@ -404,7 +600,6 @@ static int link_msg_parser(struct nl_cache_ops *ops, struct sockaddr_nl *who,
 			kind = nla_get_string(li[IFLA_INFO_KIND]);
 			ops = rtnl_link_info_ops_lookup(kind);
 			if (ops != NULL) {
-				ops->io_refcnt++;
 				link->l_info_ops = ops;
 				err = ops->io_parse(link, li[IFLA_INFO_DATA],
 						    li[IFLA_INFO_XSTATS]);
@@ -416,15 +611,45 @@ static int link_msg_parser(struct nl_cache_ops *ops, struct sockaddr_nl *who,
 		}
 	}
 
+	if (tb[IFLA_PROTINFO] && af_ops && af_ops->ao_parse_protinfo) {
+		err = af_ops->ao_parse_protinfo(link, tb[IFLA_PROTINFO],
+						link->l_af_data[link->l_family]);
+		if (err < 0)
+			goto errout;
+	}
+
+	if (tb[IFLA_AF_SPEC]) {
+		struct nlattr *af_attr;
+		int remaining;
+
+		nla_for_each_nested(af_attr, tb[IFLA_AF_SPEC], remaining) {
+			af_ops = af_lookup_and_alloc(link, nla_type(af_attr));
+			if (af_ops && af_ops->ao_parse_af) {
+				char *af_data = link->l_af_data[nla_type(af_attr)];
+
+				err = af_ops->ao_parse_af(link, af_attr, af_data);
+
+				rtnl_link_af_ops_put(af_ops);
+
+				if (err < 0)
+					goto errout;
+			}
+
+		}
+	}
+
 	err = pp->pp_cb((struct nl_object *) link, pp);
 errout:
+	rtnl_link_af_ops_put(af_ops);
 	rtnl_link_put(link);
 	return err;
 }
 
 static int link_request_update(struct nl_cache *cache, struct nl_sock *sk)
 {
-	return nl_rtgen_request(sk, RTM_GETLINK, AF_UNSPEC, NLM_F_DUMP);
+	int family = cache->c_iarg1;
+
+	return nl_rtgen_request(sk, RTM_GETLINK, family, NLM_F_DUMP);
 }
 
 static void link_dump_line(struct nl_object *obj, struct nl_dump_params *p)
@@ -460,6 +685,8 @@ static void link_dump_line(struct nl_object *obj, struct nl_dump_params *p)
 	if (link->l_info_ops && link->l_info_ops->io_dump[NL_DUMP_LINE])
 		link->l_info_ops->io_dump[NL_DUMP_LINE](link, p);
 
+	do_foreach_af(link, af_dump_line, p);
+
 	nl_dump(p, "\n");
 }
 
@@ -484,6 +711,10 @@ static void link_dump_details(struct nl_object *obj, struct nl_dump_params *p)
 
 
 	nl_dump(p, "\n");
+
+	if (link->ce_mask & LINK_ATTR_IFALIAS)
+		nl_dump_line(p, "    alias %s\n", link->l_ifalias);
+
 	nl_dump_line(p, "    ");
 
 	if (link->ce_mask & LINK_ATTR_BRD)
@@ -496,11 +727,16 @@ static void link_dump_details(struct nl_object *obj, struct nl_dump_params *p)
 		nl_dump(p, "state %s ", buf);
 	}
 
+	if (link->ce_mask & LINK_ATTR_NUM_VF)
+		nl_dump(p, "num-vf %u ", link->l_num_vf);
+
 	nl_dump(p, "mode %s\n",
 		rtnl_link_mode2str(link->l_linkmode, buf, sizeof(buf)));
 
 	if (link->l_info_ops && link->l_info_ops->io_dump[NL_DUMP_DETAILS])
 		link->l_info_ops->io_dump[NL_DUMP_DETAILS](link, p);
+
+	do_foreach_af(link, af_dump_details, p);
 }
 
 static void link_dump_stats(struct nl_object *obj, struct nl_dump_params *p)
@@ -560,77 +796,12 @@ static void link_dump_stats(struct nl_object *obj, struct nl_dump_params *p)
 		link->l_stats[RTNL_LINK_TX_CARRIER_ERR],
 		link->l_stats[RTNL_LINK_TX_HBEAT_ERR],
 		link->l_stats[RTNL_LINK_TX_WIN_ERR],
-		link->l_stats[RTNL_LINK_TX_COLLISIONS]);
+		link->l_stats[RTNL_LINK_COLLISIONS]);
 
 	if (link->l_info_ops && link->l_info_ops->io_dump[NL_DUMP_STATS])
 		link->l_info_ops->io_dump[NL_DUMP_STATS](link, p);
-}
 
-static void link_dump_env(struct nl_object *obj, struct nl_dump_params *p)
-{
-	struct rtnl_link *link = (struct rtnl_link *) obj;
-	struct nl_cache *cache = dp_cache(obj);
-	char buf[128];
-	int i;
-
-	nl_dump_line(p, "LINK_NAME=%s\n", link->l_name);
-	nl_dump_line(p, "LINK_IFINDEX=%u\n", link->l_index);
-	nl_dump_line(p, "LINK_FAMILY=%s\n",
-		     nl_af2str(link->l_family, buf, sizeof(buf)));
-	nl_dump_line(p, "LINK_TYPE=%s\n",
-		     nl_llproto2str(link->l_arptype, buf, sizeof(buf)));
-	if (link->ce_mask & LINK_ATTR_ADDR)
-		nl_dump_line(p, "LINK_ADDRESS=%s\n",
-			     nl_addr2str(link->l_addr, buf, sizeof(buf)));
-	nl_dump_line(p, "LINK_MTU=%u\n", link->l_mtu);
-	nl_dump_line(p, "LINK_TXQUEUELEN=%u\n", link->l_txqlen);
-	nl_dump_line(p, "LINK_WEIGHT=%u\n", link->l_weight);
-
-	rtnl_link_flags2str(link->l_flags & ~IFF_RUNNING, buf, sizeof(buf));
-	if (buf[0])
-		nl_dump_line(p, "LINK_FLAGS=%s\n", buf);
-
-	if (link->ce_mask & LINK_ATTR_QDISC)
-		nl_dump_line(p, "LINK_QDISC=%s\n", link->l_qdisc);
-
-	if (link->ce_mask & LINK_ATTR_LINK) {
-		struct rtnl_link *ll = rtnl_link_get(cache, link->l_link);
-
-		nl_dump_line(p, "LINK_LINK_IFINDEX=%d\n", link->l_link);
-		if (ll) {
-			nl_dump_line(p, "LINK_LINK_IFNAME=%s\n", ll->l_name);
-			rtnl_link_put(ll);
-		}
-	}
-
-	if (link->ce_mask & LINK_ATTR_MASTER) {
-		struct rtnl_link *master = rtnl_link_get(cache, link->l_master);
-		nl_dump_line(p, "LINK_MASTER=%s\n",
-			     master ? master->l_name : "none");
-		if (master)
-			rtnl_link_put(master);
-	}
-
-	if (link->ce_mask & LINK_ATTR_BRD)
-		nl_dump_line(p, "LINK_BROADCAST=%s\n",
-			     nl_addr2str(link->l_bcast, buf, sizeof(buf)));
-
-	if (link->ce_mask & LINK_ATTR_STATS) {
-		for (i = 0; i <= RTNL_LINK_STATS_MAX; i++) {
-			char *c = buf;
-
-			sprintf(buf, "LINK_");
-			rtnl_link_stat2str(i, buf + 5, sizeof(buf) - 5);
-			while (*c) {
-				*c = toupper(*c);
-				c++;
-			}
-			nl_dump_line(p, "%s=%" PRIu64 "\n", buf, link->l_stats[i]);
-		}
-	}
-
-	if (link->l_info_ops && link->l_info_ops->io_dump[NL_DUMP_ENV])
-		link->l_info_ops->io_dump[NL_DUMP_ENV](link, p);
+	do_foreach_af(link, af_dump_stats, p);
 }
 
 #if 0
@@ -701,6 +872,8 @@ static int link_compare(struct nl_object *_a, struct nl_object *_b,
 	diff |= LINK_DIFF(IFNAME,	strcmp(a->l_name, b->l_name));
 	diff |= LINK_DIFF(ADDR,		nl_addr_cmp(a->l_addr, b->l_addr));
 	diff |= LINK_DIFF(BRD,		nl_addr_cmp(a->l_bcast, b->l_bcast));
+	diff |= LINK_DIFF(IFALIAS,	strcmp(a->l_ifalias, b->l_ifalias));
+	diff |= LINK_DIFF(NUM_VF,	a->l_num_vf != b->l_num_vf);
 
 	if (flags & LOOSE_COMPARISON)
 		diff |= LINK_DIFF(FLAGS,
@@ -713,7 +886,7 @@ static int link_compare(struct nl_object *_a, struct nl_object *_b,
 	return diff;
 }
 
-static struct trans_tbl link_attrs[] = {
+static const struct trans_tbl link_attrs[] = {
 	__ADD(LINK_ATTR_MTU, mtu)
 	__ADD(LINK_ATTR_LINK, link)
 	__ADD(LINK_ATTR_TXQLEN, txqlen)
@@ -732,6 +905,8 @@ static struct trans_tbl link_attrs[] = {
 	__ADD(LINK_ATTR_CHANGE, change)
 	__ADD(LINK_ATTR_OPERSTATE, operstate)
 	__ADD(LINK_ATTR_LINKMODE, linkmode)
+	__ADD(LINK_ATTR_IFALIAS, ifalias)
+	__ADD(LINK_ATTR_NUM_VF, num_vf)
 };
 
 static char *link_attrs2str(int attrs, char *buf, size_t len)
@@ -766,6 +941,7 @@ void rtnl_link_put(struct rtnl_link *link)
 /**
  * Allocate link cache and fill in all configured links.
  * @arg sk		Netlink socket.
+ * @arg family		Link address family or AF_UNSPEC
  * @arg result		Pointer to store resulting cache.
  *
  * Allocates a new link cache, initializes it properly and updates it
@@ -773,9 +949,24 @@ void rtnl_link_put(struct rtnl_link *link)
  *
  * @return 0 on success or a negative error code.
  */
-int rtnl_link_alloc_cache(struct nl_sock *sk, struct nl_cache **result)
+int rtnl_link_alloc_cache(struct nl_sock *sk, int family, struct nl_cache **result)
 {
-	return nl_cache_alloc_and_fill(&rtnl_link_ops, sk, result);
+	struct nl_cache * cache;
+	int err;
+	
+	cache = nl_cache_alloc(&rtnl_link_ops);
+	if (!cache)
+		return -NLE_NOMEM;
+
+	cache->c_iarg1 = family;
+	
+	if (sk && (err = nl_cache_refill(sk, cache)) < 0) {
+		nl_cache_free(cache);
+		return err;
+	}
+
+	*result = cache;
+	return 0;
 }
 
 /**
@@ -863,6 +1054,7 @@ int rtnl_link_build_change_request(struct rtnl_link *old,
 				   struct nl_msg **result)
 {
 	struct nl_msg *msg;
+	struct nlattr *af_spec;
 	struct ifinfomsg ifi = {
 		.ifi_family = old->l_family,
 		.ifi_index = old->l_index,
@@ -904,6 +1096,9 @@ int rtnl_link_build_change_request(struct rtnl_link *old,
 	if (tmpl->ce_mask & LINK_ATTR_LINKMODE)
 		NLA_PUT_U8(msg, IFLA_LINKMODE, tmpl->l_linkmode);
 
+	if (tmpl->ce_mask & LINK_ATTR_IFALIAS)
+		NLA_PUT_STRING(msg, IFLA_IFALIAS, tmpl->l_ifalias);
+
 	if ((tmpl->ce_mask & LINK_ATTR_LINKINFO) && tmpl->l_info_ops &&
 	    tmpl->l_info_ops->io_put_attrs) {
 		struct nlattr *info;
@@ -918,6 +1113,14 @@ int rtnl_link_build_change_request(struct rtnl_link *old,
 
 		nla_nest_end(msg, info);
 	}
+
+	if (!(af_spec = nla_nest_start(msg, IFLA_AF_SPEC)))
+		goto nla_put_failure;
+
+	if (do_foreach_af(tmpl, af_fill, msg) < 0)
+		goto nla_put_failure;
+
+	nla_nest_end(msg, af_spec);
 
 	*result = msg;
 	return 0;
@@ -1020,7 +1223,7 @@ int rtnl_link_name2i(struct nl_cache *cache, const char *name)
  * @{
  */
 
-static struct trans_tbl link_flags[] = {
+static const struct trans_tbl link_flags[] = {
 	__ADD(IFF_LOOPBACK, loopback)
 	__ADD(IFF_BROADCAST, broadcast)
 	__ADD(IFF_POINTOPOINT, pointopoint)
@@ -1060,7 +1263,7 @@ int rtnl_link_str2flags(const char *name)
  * @{
  */
 
-static struct trans_tbl link_stats[] = {
+static const struct trans_tbl link_stats[] = {
 	__ADD(RTNL_LINK_RX_PACKETS, rx_packets)
 	__ADD(RTNL_LINK_TX_PACKETS, tx_packets)
 	__ADD(RTNL_LINK_RX_BYTES, rx_bytes)
@@ -1082,8 +1285,42 @@ static struct trans_tbl link_stats[] = {
 	__ADD(RTNL_LINK_TX_CARRIER_ERR, tx_carrier_err)
 	__ADD(RTNL_LINK_TX_HBEAT_ERR, tx_hbeat_err)
 	__ADD(RTNL_LINK_TX_WIN_ERR, tx_win_err)
-	__ADD(RTNL_LINK_TX_COLLISIONS, tx_collision)
+	__ADD(RTNL_LINK_COLLISIONS, collisions)
 	__ADD(RTNL_LINK_MULTICAST, multicast)
+	__ADD(RTNL_LINK_IP6_INPKTS, Ip6InReceives)
+	__ADD(RTNL_LINK_IP6_INHDRERRORS, Ip6InHdrErrors)
+	__ADD(RTNL_LINK_IP6_INTOOBIGERRORS, Ip6InTooBigErrors)
+	__ADD(RTNL_LINK_IP6_INNOROUTES, Ip6InNoRoutes)
+	__ADD(RTNL_LINK_IP6_INADDRERRORS, Ip6InAddrErrors)
+	__ADD(RTNL_LINK_IP6_INUNKNOWNPROTOS, Ip6InUnknownProtos)
+	__ADD(RTNL_LINK_IP6_INTRUNCATEDPKTS, Ip6InTruncatedPkts)
+	__ADD(RTNL_LINK_IP6_INDISCARDS, Ip6InDiscards)
+	__ADD(RTNL_LINK_IP6_INDELIVERS, Ip6InDelivers)
+	__ADD(RTNL_LINK_IP6_OUTFORWDATAGRAMS, Ip6OutForwDatagrams)
+	__ADD(RTNL_LINK_IP6_OUTPKTS, Ip6OutRequests)
+	__ADD(RTNL_LINK_IP6_OUTDISCARDS, Ip6OutDiscards)
+	__ADD(RTNL_LINK_IP6_OUTNOROUTES, Ip6OutNoRoutes)
+	__ADD(RTNL_LINK_IP6_REASMTIMEOUT, Ip6ReasmTimeout)
+	__ADD(RTNL_LINK_IP6_REASMREQDS, Ip6ReasmReqds)
+	__ADD(RTNL_LINK_IP6_REASMOKS, Ip6ReasmOKs)
+	__ADD(RTNL_LINK_IP6_REASMFAILS, Ip6ReasmFails)
+	__ADD(RTNL_LINK_IP6_FRAGOKS, Ip6FragOKs)
+	__ADD(RTNL_LINK_IP6_FRAGFAILS, Ip6FragFails)
+	__ADD(RTNL_LINK_IP6_FRAGCREATES, Ip6FragCreates)
+	__ADD(RTNL_LINK_IP6_INMCASTPKTS, Ip6InMcastPkts)
+	__ADD(RTNL_LINK_IP6_OUTMCASTPKTS, Ip6OutMcastPkts)
+	__ADD(RTNL_LINK_IP6_INBCASTPKTS, Ip6InBcastPkts)
+	__ADD(RTNL_LINK_IP6_OUTBCASTPKTS, Ip6OutBcastPkts)
+	__ADD(RTNL_LINK_IP6_INOCTETS, Ip6InOctets)
+	__ADD(RTNL_LINK_IP6_OUTOCTETS, Ip6OutOctets)
+	__ADD(RTNL_LINK_IP6_INMCASTOCTETS, Ip6InMcastOctets)
+	__ADD(RTNL_LINK_IP6_OUTMCASTOCTETS, Ip6OutMcastOctets)
+	__ADD(RTNL_LINK_IP6_INBCASTOCTETS, Ip6InBcastOctets)
+	__ADD(RTNL_LINK_IP6_OUTBCASTOCTETS, Ip6OutBcastOctets)
+	__ADD(RTNL_LINK_ICMP6_INMSGS, ICMP6_InMsgs)
+	__ADD(RTNL_LINK_ICMP6_INERRORS, ICMP6_InErrors)
+	__ADD(RTNL_LINK_ICMP6_OUTMSGS, ICMP6_OutMsgs)
+	__ADD(RTNL_LINK_ICMP6_OUTERRORS, ICMP6_OutErrors)
 };
 
 char *rtnl_link_stat2str(int st, char *buf, size_t len)
@@ -1103,7 +1340,7 @@ int rtnl_link_str2stat(const char *name)
  * @{
  */
 
-static struct trans_tbl link_operstates[] = {
+static const struct trans_tbl link_operstates[] = {
 	__ADD(IF_OPER_UNKNOWN, unknown)
 	__ADD(IF_OPER_NOTPRESENT, notpresent)
 	__ADD(IF_OPER_DOWN, down)
@@ -1132,7 +1369,7 @@ int rtnl_link_str2operstate(const char *name)
  * @{
  */
 
-static struct trans_tbl link_modes[] = {
+static const struct trans_tbl link_modes[] = {
 	__ADD(IF_LINK_MODE_DEFAULT, default)
 	__ADD(IF_LINK_MODE_DORMANT, dormant)
 };
@@ -1247,7 +1484,7 @@ void rtnl_link_set_family(struct rtnl_link *link, int family)
 
 int rtnl_link_get_family(struct rtnl_link *link)
 {
-	if (link->l_family & LINK_ATTR_FAMILY)
+	if (link->ce_mask & LINK_ATTR_FAMILY)
 		return link->l_family;
 	else
 		return AF_UNSPEC;
@@ -1366,12 +1603,78 @@ uint8_t rtnl_link_get_linkmode(struct rtnl_link *link)
 		return IF_LINK_MODE_DEFAULT;
 }
 
+/**
+ * Return alias name of link (SNMP IfAlias)
+ * @arg link		Link object
+ *
+ * @return Alias name or NULL if not set.
+ */
+const char *rtnl_link_get_ifalias(struct rtnl_link *link)
+{
+	return link->l_ifalias;
+}
+
+/**
+ * Set alias name of link (SNMP IfAlias)
+ * @arg link		Link object
+ * @arg alias		Alias name or NULL to unset
+ *
+ * Sets the alias name of the link to the specified name. The alias
+ * name can be unset by specyfing NULL as the alias. The name will
+ * be strdup()ed, so no need to provide a persistent character string.
+ */
+void rtnl_link_set_ifalias(struct rtnl_link *link, const char *alias)
+{
+	free(link->l_ifalias);
+	link->ce_mask &= ~LINK_ATTR_IFALIAS;
+
+	if (alias) {
+		link->l_ifalias = strdup(alias);
+		link->ce_mask |= LINK_ATTR_IFALIAS;
+	}
+}
+
+/**
+ * Retrieve number of PCI VFs of link
+ * @arg link		Link object
+ * @arg num_vf		Pointer to store number of VFs
+ *
+ * @return 0 if value is available or -NLE_OPNOTSUPP if not.
+ */
+int rtnl_link_get_num_vf(struct rtnl_link *link, uint32_t *num_vf)
+{
+	if (link->ce_mask & LINK_ATTR_NUM_VF) {
+		*num_vf = link->l_num_vf;
+		return 0;
+	} else
+		return -NLE_OPNOTSUPP;
+}
+
 uint64_t rtnl_link_get_stat(struct rtnl_link *link, int id)
 {
 	if (id < 0 || id > RTNL_LINK_STATS_MAX)
 		return 0;
 
 	return link->l_stats[id];
+}
+
+/**
+ * Set value of a link statistics counter
+ * @arg link		Link object
+ * @arg id		Counter ID
+ * @arg value		New value
+ *
+ * @return 0 on success or a negative error code
+ */
+int rtnl_link_set_stat(struct rtnl_link *link, const unsigned int id,
+		       const uint64_t value)
+{
+	if (id > RTNL_LINK_STATS_MAX)
+		return -NLE_INVAL;
+
+	link->l_stats[id] = value;
+
+	return 0;
 }
 
 /**
@@ -1430,7 +1733,6 @@ static struct nl_object_ops link_obj_ops = {
 	    [NL_DUMP_LINE]	= link_dump_line,
 	    [NL_DUMP_DETAILS]	= link_dump_details,
 	    [NL_DUMP_STATS]	= link_dump_stats,
-	    [NL_DUMP_ENV]	= link_dump_env,
 	},
 	.oo_compare		= link_compare,
 	.oo_attrs2str		= link_attrs2str,
@@ -1449,6 +1751,7 @@ static struct nl_cache_ops rtnl_link_ops = {
 					{ RTM_NEWLINK, NL_ACT_NEW, "new" },
 					{ RTM_DELLINK, NL_ACT_DEL, "del" },
 					{ RTM_GETLINK, NL_ACT_GET, "get" },
+					{ RTM_SETLINK, NL_ACT_CHANGE, "set" },
 					END_OF_MSGTYPES_LIST,
 				  },
 	.co_protocol		= NETLINK_ROUTE,
