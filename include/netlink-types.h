@@ -920,6 +920,7 @@ struct nl_dect_llme_mac_info {
 	uint32_t		mi_ehlc;
 	uint16_t		mi_efpc2;
 	uint32_t		mi_ehlc2;
+	uint32_t		mi_mfn;
 };
 
 struct nl_dect_llme_mac_con {

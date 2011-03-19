@@ -37,6 +37,7 @@ static struct nl_object_ops llme_msg_obj_ops;
 #define MAC_INFO_ATTR_EHLC		0x0400000
 #define MAC_INFO_ATTR_EFPC2		0x0800000
 #define MAC_INFO_ATTR_EHLC2		0x1000000
+#define MAC_INFO_ATTR_MFN		0x2000000
 
 static inline struct nl_dect_llme_mac_info *mac_info(const struct nl_dect_llme_msg *lmsg)
 {
@@ -149,6 +150,18 @@ uint32_t nl_dect_llme_mac_info_get_ehlc2(const struct nl_dect_llme_msg *lmsg)
 {
 	return mac_info(lmsg)->mi_ehlc2;
 }
+
+void nl_dect_llme_mac_info_set_mfn(struct nl_dect_llme_msg *lmsg, uint32_t mfn)
+{
+	mac_info(lmsg)->mi_mfn = mfn;
+	lmsg->ce_mask |= MAC_INFO_ATTR_MFN;
+}
+
+uint32_t nl_dect_llme_mac_info_get_mfn(const struct nl_dect_llme_msg *lmsg)
+{
+        return mac_info(lmsg)->mi_mfn;
+}
+
 
 static struct trans_tbl fixed_part_capabilities[] = {
 	__ADD(DECT_FPC_EXTENDED_FP_INFO,		extended_fp_info)
@@ -373,6 +386,7 @@ static struct nla_policy nl_dect_mac_info_policy[DECTA_MAC_INFO_MAX + 1] =  {
 	[DECTA_MAC_INFO_EHLC]		= { .type = NLA_U32 },
 	[DECTA_MAC_INFO_EFPC2]		= { .type = NLA_U16 },
 	[DECTA_MAC_INFO_EHLC2]		= { .type = NLA_U32 },
+	[DECTA_MAC_INFO_MFN]		= { .type = NLA_U32 },
 };
 
 static int nl_dect_llme_mac_info_parse(struct nl_dect_llme_msg *lmsg,
@@ -431,6 +445,8 @@ static int nl_dect_llme_mac_info_build(struct nl_msg *msg,
 		NLA_PUT_U16(msg, DECTA_MAC_INFO_EFPC2, mi->mi_efpc2);
 	if (lmsg->ce_mask & MAC_INFO_ATTR_EHLC2)
 		NLA_PUT_U32(msg, DECTA_MAC_INFO_EHLC2, mi->mi_ehlc2);
+	if (lmsg->ce_mask & MAC_INFO_ATTR_MFN)
+		NLA_PUT_U32(msg, DECTA_MAC_INFO_MFN, mi->mi_mfn);
 	return 0;
 
 nla_put_failure:
