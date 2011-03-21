@@ -39,30 +39,28 @@ nobase_include_HEADERS = \
 	netlink/route/cls/u32.h \
 	netlink/route/link/info-api.h \
 	netlink/route/link/vlan.h \
-	netlink/route/sch/cbq.h \
-	netlink/route/sch/dsmark.h \
-	netlink/route/sch/fifo.h \
-	netlink/route/sch/htb.h \
-	netlink/route/sch/netem.h \
-	netlink/route/sch/prio.h \
-	netlink/route/sch/red.h \
-	netlink/route/sch/sfq.h \
-	netlink/route/sch/tbf.h \
+	netlink/route/qdisc/cbq.h \
+	netlink/route/qdisc/dsmark.h \
+	netlink/route/qdisc/fifo.h \
+	netlink/route/qdisc/htb.h \
+	netlink/route/qdisc/netem.h \
+	netlink/route/qdisc/prio.h \
+	netlink/route/qdisc/red.h \
+	netlink/route/qdisc/sfq.h \
+	netlink/route/qdisc/tbf.h \
 	netlink/route/addr.h \
-	netlink/route/class-modules.h \
 	netlink/route/class.h \
-	netlink/route/classifier-modules.h \
 	netlink/route/classifier.h \
 	netlink/route/link.h \
 	netlink/route/neighbour.h \
 	netlink/route/neightbl.h \
 	netlink/route/nexthop.h \
-	netlink/route/qdisc-modules.h \
 	netlink/route/qdisc.h \
 	netlink/route/route.h \
 	netlink/route/rtnl.h \
 	netlink/route/rule.h \
 	netlink/route/tc.h \
+	netlink/route/tc-api.h \
 	netlink/socket.h \
 	netlink/types.h \
 	netlink/utils.h \

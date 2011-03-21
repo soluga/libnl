@@ -43,11 +43,10 @@ route/cls/ematch_syntax.c: route/cls/ematch_syntax.y
 
 libnl_route_la_LIBADD  = libnl.la
 libnl_route_la_SOURCES = \
-	route/addr.c route/class.c route/class_api.c route/class_obj.c \
-	route/cls.c route/cls_api.c route/cls_obj.c route/link.c \
+	route/addr.c route/class.c route/cls.c route/link.c \
 	route/neigh.c route/neightbl.c route/nexthop.c route/qdisc.c \
-	route/qdisc_api.c route/qdisc_obj.c route/route.c route/route_obj.c \
-	route/route_utils.c route/rtnl.c route/rule.c route/tc.c route/classid.c \
+	route/route.c route/route_obj.c route/route_utils.c route/rtnl.c \
+	route/rule.c route/tc.c route/classid.c \
 	\
 	route/cls/fw.c route/cls/police.c route/cls/u32.c route/cls/basic.c \
 	route/cls/cgroup.c \
@@ -61,9 +60,10 @@ libnl_route_la_SOURCES = \
 	route/link/api.c route/link/vlan.c \
 	route/link/bridge.c route/link/inet6.c route/link/inet.c \
 	\
-	route/sch/blackhole.c route/sch/cbq.c route/sch/dsmark.c \
-	route/sch/fifo.c route/sch/htb.c route/sch/netem.c route/sch/prio.c \
-	route/sch/red.c route/sch/sfq.c route/sch/tbf.c \
+	route/qdisc/blackhole.c route/qdisc/cbq.c route/qdisc/dsmark.c \
+	route/qdisc/fifo.c route/qdisc/htb.c route/qdisc/netem.c \
+	route/qdisc/prio.c route/qdisc/red.c route/qdisc/sfq.c \
+	route/qdisc/tbf.c \
 	\
 	fib_lookup/lookup.c fib_lookup/request.c \
 	\
