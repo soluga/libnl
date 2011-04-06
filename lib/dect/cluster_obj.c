@@ -17,12 +17,20 @@
 #include <netlink/dect/cluster.h>
 #include <netlink/dect/ari.h>
 #include <linux/dect_netlink.h>
+#include <linux/dect.h>
 
 /** @cond SKIP */
 #define CL_ATTR_NAME		0x0001
 #define CL_ATTR_MODE		0x0002
 #define CL_ATTR_PARI		0x0004
 /** @endcond */
+
+char *nl_dect_mbc_state2string(enum dect_mbc_state state,
+			       char *buf, size_t len);
+char *nl_dect_mbc_service2string(enum dect_mac_service_types type,
+				 char *buf, size_t len);
+char *nl_dect_mbc_cipher2string(enum dect_cipher_states state,
+				char *buf, size_t len);
 
 static void cluster_free_data(struct nl_object *obj)
 {
@@ -33,9 +41,41 @@ static void cluster_free_data(struct nl_object *obj)
 	free(cl->cl_name);
 }
 
+static void mbc_tb_dump(struct nl_dect_mbc_tb *mtb, struct nl_dump_params *p)
+{
+	nl_dump(p, "\t    TB: LBN: %u ECN: %u Cell: %u RX/TX-Slots: %u/%u\n",
+		mtb->mtb_lbn, mtb->mtb_ecn,
+		mtb->mtb_cell, mtb->mtb_rx_slot, mtb->mtb_tx_slot);
+}
+
+static void mbc_dump(struct nl_dect_mbc *mbc, struct nl_dump_params *p)
+{
+	unsigned int i;
+	char buf[64];
+
+	nl_dump(p, "\tMBC: MCEI %u\n", mbc->mbc_mcei);
+	nl_dump(p, "\t  State: %s\n",
+		nl_dect_mbc_state2string(mbc->mbc_state,
+					 buf, sizeof(buf)));
+	nl_dump(p, "\t  Service: %s\n",
+		nl_dect_mbc_service2string(mbc->mbc_service,
+					   buf, sizeof(buf)));
+	nl_dump(p, "\t  Cipher state: %s\n",
+		nl_dect_mbc_cipher2string(mbc->mbc_cipher_state,
+					  buf, sizeof(buf)));
+	nl_dump(p, "\t  Cs-channel RX-Bytes: %u TX-Bytes: %u\n",
+		mbc->mbc_cs_rx_bytes, mbc->mbc_cs_tx_bytes);
+	nl_dump(p, "\t  I-channel RX-Bytes: %u TX-Bytes: %u\n",
+		mbc->mbc_i_rx_bytes, mbc->mbc_i_tx_bytes);
+
+	for (i = 0; i < mbc->mbc_ntbs; i++)
+		mbc_tb_dump(&mbc->mbc_tbs[i], p);
+}
+
 static void cluster_dump(struct nl_object *obj, struct nl_dump_params *p)
 {
 	struct nl_dect_cluster *cl = nl_object_priv(obj);
+	unsigned int i;
 	char buf[64];
 
 	if (cl->ce_mask & CL_ATTR_NAME)
@@ -52,6 +92,10 @@ static void cluster_dump(struct nl_object *obj, struct nl_dump_params *p)
 		nl_dect_dump_ari(&cl->cl_pari, p);
 		nl_dump(p, "\n");
 	}
+
+	nl_dump(p, "\n");
+	for (i = 0; i < cl->cl_nmbcs; i++)
+		mbc_dump(&cl->cl_mbcs[i], p);
 }
 
 /**
@@ -171,6 +215,48 @@ enum dect_cluster_modes nl_dect_cluster_str2mode(const char *str)
 	return __str2type(str, cluster_modes, ARRAY_SIZE(cluster_modes));
 }
 
+static struct trans_tbl mbc_states[] = {
+	__ADD(DECT_MBC_NONE,				none)
+	__ADD(DECT_MBC_INITIATED,			initiated)
+	__ADD(DECT_MBC_ESTABLISHED,			established)
+	__ADD(DECT_MBC_RELEASED,			released)
+};
+
+char *nl_dect_mbc_state2string(enum dect_mbc_state state,
+			       char *buf, size_t len)
+{
+	return __type2str(state, buf, len, mbc_states,
+			  ARRAY_SIZE(mbc_states));
+}
+
+static struct trans_tbl mac_service_types[] = {
+	__ADD(DECT_SERVICE_IN_MIN_DELAY,		IN_min_delay)
+	__ADD(DECT_SERVICE_IPX_ENCODED_PROTECTED,	IPX_encoded_protected)
+	__ADD(DECT_SERVICE_IN_NORMAL_DELAY,		IN_normal_delay)
+	__ADD(DECT_SERVICE_UNKNOWN,			unknown)
+	__ADD(DECT_SERVICE_C_CHANNEL_ONLY,		C_channel_only)
+	__ADD(DECT_SERVICE_IP_ERROR_DETECTION,		IP_error_detection)
+	__ADD(DECT_SERVICE_IPQ_ERROR_DETECTION,		IPQ_error_detection)
+};
+
+char *nl_dect_mbc_service2string(enum dect_mac_service_types type,
+				 char *buf, size_t len)
+{
+	return __type2str(type, buf, len, mac_service_types,
+			  ARRAY_SIZE(mac_service_types));
+}
+
+static struct trans_tbl cipher_states[] = {
+	__ADD(DECT_CIPHER_DISABLED,			disabled)
+	__ADD(DECT_CIPHER_ENABLED,			enabled)
+};
+
+char *nl_dect_mbc_cipher2string(enum dect_cipher_states state,
+				char *buf, size_t len)
+{
+	return __type2str(state, buf, len, cipher_states,
+			  ARRAY_SIZE(cipher_states));
+}
 
 /** @cond SKIP */
 struct nl_object_ops nl_dect_cluster_obj_ops = {

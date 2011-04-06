@@ -884,6 +884,29 @@ struct nl_dect_ari {
 	} ari_u;
 };
 
+struct nl_dect_mbc_tb {
+	uint8_t			mtb_lbn;
+	uint8_t			mtb_ecn;
+	uint8_t			mtb_cell;
+	uint8_t			mtb_rx_slot;
+	uint8_t			mtb_tx_slot;
+};
+
+struct nl_dect_mbc {
+	uint32_t		mbc_mcei;
+	uint8_t			mbc_state;
+	uint8_t			mbc_service;
+	uint8_t			mbc_cipher_state;
+	uint8_t			mbc_ntbs;
+	struct nl_dect_mbc_tb	mbc_tbs[8];
+
+	uint32_t		mbc_cs_rx_bytes;
+	uint32_t		mbc_cs_tx_bytes;
+	uint32_t		mbc_i_rx_bytes;
+	uint32_t		mbc_i_tx_bytes;
+	uint32_t		mbc_handovers;
+};
+
 struct nl_dect_cluster {
 	NLHDR_COMMON
 
@@ -892,6 +915,8 @@ struct nl_dect_cluster {
 	uint8_t			cl_mode;
 	struct nl_dect_ari	cl_pari;
 	uint8_t			cells[8];
+	struct nl_dect_mbc	cl_mbcs[8];
+	uint8_t			cl_nmbcs;
 };
 
 struct nl_dect_cell {
