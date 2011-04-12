@@ -861,6 +861,7 @@ struct nl_dect_transceiver {
 
 	char					*trx_name;
 	char					*trx_type;
+	uint32_t				trx_features;
 	uint8_t					trx_index;
 	uint8_t					trx_link;
 	uint8_t					trx_band;

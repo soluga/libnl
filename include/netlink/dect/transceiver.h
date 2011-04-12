@@ -21,6 +21,8 @@ extern void			nl_dect_transceiver_set_type(struct nl_dect_transceiver *,
 extern bool			nl_dect_transceiver_test_type(const struct nl_dect_transceiver *);
 extern const char *		nl_dect_transceiver_get_type(const struct nl_dect_transceiver *);
 
+extern void			nl_dect_transceiver_set_features(struct nl_dect_transceiver *,
+								 uint32_t);
 extern void			nl_dect_transceiver_set_index(struct nl_dect_transceiver *,
 							      int);
 extern void			nl_dect_transceiver_set_link(struct nl_dect_transceiver *,
@@ -37,6 +39,8 @@ extern int			nl_dect_transceiver_build_change_request(struct nl_dect_transceiver
 									 int, struct nl_msg **);
 extern int			nl_dect_transceiver_change(struct nl_sock *,
 							   struct nl_dect_transceiver *, int flags);
+
+extern const char *		nl_dect_transceiver_features2str(uint32_t, char *, size_t);
 
 extern const char *		nl_dect_slot_state2str(uint8_t, char *, size_t);
 extern uint8_t			nl_dect_slot_str2state(const char *);

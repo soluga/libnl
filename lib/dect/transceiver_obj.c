@@ -21,9 +21,10 @@
 /** @cond SKIP */
 #define TRANSCEIVER_ATTR_NAME		0x0001
 #define TRANSCEIVER_ATTR_TYPE		0x0002
-#define TRANSCEIVER_ATTR_INDEX		0x0004
-#define TRANSCEIVER_ATTR_LINK		0x0008
-#define TRANSCEIVER_ATTR_BAND		0x0010
+#define TRANSCEIVER_ATTR_FEATURES	0x0004
+#define TRANSCEIVER_ATTR_INDEX		0x0008
+#define TRANSCEIVER_ATTR_LINK		0x0010
+#define TRANSCEIVER_ATTR_BAND		0x0020
 /** @endtsond */
 
 static void transceiver_free_data(struct nl_object *obj)
@@ -100,6 +101,10 @@ static void transceiver_dump(struct nl_object *obj, struct nl_dump_params *p)
 	nl_dump(p, ":\n");
 	if (trx->trx_type != NULL)
 		nl_dump_line(p, "\tType: %s\n", trx->trx_type);
+	if (trx->trx_features != 0)
+		nl_dump_line(p, "\tFeatures: %s\n",
+			     nl_dect_transceiver_features2str(trx->trx_features,
+				     			      buf, sizeof(buf)));
 	nl_dump(p, "\tRF-band: %.5u\n", trx->trx_band);
 	nl_dump(p, "\tEvents: busy: %u late: %u\n",
 		stats->trx_event_busy, stats->trx_event_late);
@@ -189,6 +194,12 @@ const char *nl_dect_transceiver_get_type(const struct nl_dect_transceiver *trx)
 	return trx->trx_type;
 }
 
+void nl_dect_transceiver_set_features(struct nl_dect_transceiver *trx, uint32_t features)
+{
+	trx->trx_features = features;
+	trx->ce_mask |= TRANSCEIVER_ATTR_FEATURES;
+}
+
 void nl_dect_transceiver_set_index(struct nl_dect_transceiver *trx, int index)
 {
 	trx->trx_index = index;
@@ -215,6 +226,16 @@ bool nl_dect_transceiver_test_band(const struct nl_dect_transceiver *trx)
 uint8_t nl_dect_transceiver_get_band(const struct nl_dect_transceiver *trx)
 {
 	return trx->trx_band;
+}
+
+static struct trans_tbl trx_features[] = {
+	__ADD(DECT_TRANSCEIVER_SLOW_HOPPING,		slow-hopping)
+};
+
+const char *nl_dect_transceiver_features2str(uint32_t features, char *buf, size_t len)
+{
+	return __flags2str(features, buf, len, trx_features,
+			   ARRAY_SIZE(trx_features));
 }
 
 static struct trans_tbl slot_states[] = {

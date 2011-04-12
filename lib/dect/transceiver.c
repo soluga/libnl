@@ -30,6 +30,7 @@ static struct nl_cache_ops nl_dect_transceiver_ops;
 static struct nla_policy transceiver_policy[DECTA_TRANSCEIVER_MAX + 1] = {
 	[DECTA_TRANSCEIVER_NAME]	= { .type = NLA_STRING, .maxlen = DECTNAMSIZ },
 	[DECTA_TRANSCEIVER_TYPE]	= { .type = NLA_STRING },
+	[DECTA_TRANSCEIVER_FEATURES]	= { .type = NLA_U32 },
 	[DECTA_TRANSCEIVER_LINK]	= { .type = NLA_U8 },
 	[DECTA_TRANSCEIVER_STATS]	= { .type = NLA_NESTED },
 	[DECTA_TRANSCEIVER_BAND]	= { .type = NLA_U8 },
@@ -160,6 +161,9 @@ static int transceiver_msg_parser(struct nl_cache_ops *ops,
 		nl_dect_transceiver_set_type(trx, type);
 		free(type);
 	}
+
+	if (tb[DECTA_TRANSCEIVER_FEATURES] != NULL)
+		nl_dect_transceiver_set_features(trx, nla_get_u32(tb[DECTA_TRANSCEIVER_FEATURES]));
 
 	if (tb[DECTA_TRANSCEIVER_LINK] != NULL)
 		nl_dect_transceiver_set_link(trx, nla_get_u8(tb[DECTA_TRANSCEIVER_LINK]));
