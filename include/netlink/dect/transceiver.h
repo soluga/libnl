@@ -48,6 +48,9 @@ extern uint8_t			nl_dect_slot_str2state(const char *);
 extern const char *		nl_dect_slot_flags2str(uint32_t, char *, size_t);
 extern uint32_t			nl_dect_slot_str2flags(const char *);
 
+extern const char *		nl_dect_slot_packet2str(uint8_t, char *, size_t);
+extern uint8_t			nl_dect_slot_str2packet(const char *);
+
 extern int			nl_dect_transceiver_alloc_cache(struct nl_sock *,
 								struct nl_cache **);
 

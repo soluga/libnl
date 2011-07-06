@@ -50,16 +50,25 @@ static void slot_dump(struct nl_dect_transceiver_slot *dts, unsigned int n,
 		nl_dump(p, ",%s", buf);
 	}
 	nl_dump(p, "> ");
-	nl_dump(p, "carrier: %u (%u.%03u MHz", dts->dts_carrier,
-		dts->dts_frequency / 1000, dts->dts_frequency % 1000);
 
-	if (dts->dts_state == DECT_SLOT_RX) {
-		offset = (int64_t)dts->dts_frequency * dts->dts_phaseoff /
-			 DECT_PHASE_OFFSET_SCALE;
-		nl_dump(p, " %+" PRId64 ".%03" PRIu64 " kHz",
-			offset / 1000000, llabs(offset) % 1000000 / 1000);
+	if (dts->dts_state != DECT_SLOT_IDLE) {
+		nl_dump(p, "packet: %s ",
+			nl_dect_slot_packet2str(dts->dts_packet, buf,
+						sizeof(buf)));
+
+		nl_dump(p, "carrier: %u (%u.%03u MHz", dts->dts_carrier,
+			dts->dts_frequency / 1000, dts->dts_frequency % 1000);
+
+		if (dts->dts_state == DECT_SLOT_RX) {
+			offset = (int64_t)dts->dts_frequency *
+					  dts->dts_phaseoff /
+					   DECT_PHASE_OFFSET_SCALE;
+			nl_dump(p, " %+" PRId64 ".%03" PRIu64 " kHz",
+				offset / 1000000,
+				llabs(offset) % 1000000 / 1000);
+		}
+		nl_dump(p, ")");
 	}
-	nl_dump(p, ")");
 
 	if (dts->dts_state == DECT_SLOT_RX)
 		nl_dump(p, " signal level: %.2fdBm",
@@ -269,6 +278,25 @@ const char *nl_dect_slot_flags2str(uint32_t state, char *buf, size_t len)
 uint32_t nl_dect_slot_str2flags(const char *str)
 {
 	return __str2flags(str, slot_flags, ARRAY_SIZE(slot_flags));
+}
+
+static struct trans_tbl packet_types[] = {
+	__ADD(DECT_PACKET_P00,		P00)
+	__ADD(DECT_PACKET_P08,		P08)
+	__ADD(DECT_PACKET_P32,		P32)
+	__ADD(DECT_PACKET_P80,		P80)
+	__ADD(DECT_PACKET_P640j,	P640j)
+	__ADD(DECT_PACKET_P640j,	P672j)
+};
+
+const char *nl_dect_slot_packet2str(uint8_t pkt, char *buf, size_t len)
+{
+	return __type2str(pkt, buf, len, packet_types, ARRAY_SIZE(packet_types));
+}
+
+uint8_t nl_dect_slot_str2packet(const char *str)
+{
+	return __str2type(str, packet_types, ARRAY_SIZE(packet_types));
 }
 
 int nl_dect_transceiver_build_msg(struct nl_msg *msg, struct nl_dect_transceiver *trx)

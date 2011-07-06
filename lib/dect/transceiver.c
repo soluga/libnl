@@ -46,6 +46,7 @@ static struct nla_policy slot_policy[DECTA_SLOT_MAX + 1] = {
 	[DECTA_SLOT_NUM]		= { .type = NLA_U8 },
 	[DECTA_SLOT_STATE]		= { .type = NLA_U8 },
 	[DECTA_SLOT_FLAGS]		= { .type = NLA_U32 },
+	[DECTA_SLOT_PACKET]		= { .type = NLA_U8 },
 	[DECTA_SLOT_CARRIER]		= { .type = NLA_U8 },
 	[DECTA_SLOT_FREQUENCY]		= { .type = NLA_U32 },
 	[DECTA_SLOT_PHASEOFF]		= { .type = NLA_U32 },
@@ -80,6 +81,8 @@ static int slot_parser(struct nl_dect_transceiver *trx, struct nlattr *nla)
 		dts->dts_state = nla_get_u8(tb[DECTA_SLOT_STATE]);
 	if (tb[DECTA_SLOT_FLAGS] != NULL)
 		dts->dts_flags = nla_get_u32(tb[DECTA_SLOT_FLAGS]);
+	if (tb[DECTA_SLOT_PACKET] != NULL)
+		dts->dts_packet = nla_get_u8(tb[DECTA_SLOT_PACKET]);
 	if (tb[DECTA_SLOT_CARRIER] != NULL)
 		dts->dts_carrier = nla_get_u8(tb[DECTA_SLOT_CARRIER]);
 	if (tb[DECTA_SLOT_FREQUENCY] != NULL)
