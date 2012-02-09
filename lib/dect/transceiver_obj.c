@@ -239,6 +239,7 @@ uint8_t nl_dect_transceiver_get_band(const struct nl_dect_transceiver *trx)
 
 static struct trans_tbl trx_features[] = {
 	__ADD(DECT_TRANSCEIVER_SLOW_HOPPING,		slow-hopping)
+	__ADD(DECT_TRANSCEIVER_PACKET_P64,		p64)
 };
 
 const char *nl_dect_transceiver_features2str(uint32_t features, char *buf, size_t len)
