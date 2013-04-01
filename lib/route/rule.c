@@ -16,7 +16,7 @@
  * @{
  */
 
-#include <netlink-local.h>
+#include <netlink-private/netlink.h>
 #include <netlink/netlink.h>
 #include <netlink/utils.h>
 #include <netlink/route/rtnl.h>
@@ -319,7 +319,7 @@ void rtnl_rule_put(struct rtnl_rule *rule)
 
 /**
  * Build a rule cache including all rules currently configured in the kernel.
- * @arg sk		Netlink socket.
+ * @arg sock		Netlink socket.
  * @arg family		Address family or AF_UNSPEC.
  * @arg result		Pointer to store resulting cache.
  *
@@ -374,18 +374,24 @@ static int build_rule_msg(struct rtnl_rule *tmpl, int cmd, int flags,
 	if (!msg)
 		return -NLE_NOMEM;
 
+	if (tmpl->ce_mask & RULE_ATTR_SRC) 
+		frh.src_len = nl_addr_get_prefixlen(tmpl->r_src);
+
+	if (tmpl->ce_mask & RULE_ATTR_DST)
+		frh.dst_len = nl_addr_get_prefixlen(tmpl->r_dst);
+
 	if (nlmsg_append(msg, &frh, sizeof(frh), NLMSG_ALIGNTO) < 0)
 		goto nla_put_failure;
 
-	if (tmpl->ce_mask & RULE_ATTR_SRC) {
-		frh.src_len = nl_addr_get_prefixlen(tmpl->r_src);
-		NLA_PUT_ADDR(msg, FRA_SRC, tmpl->r_src);
-	}
+	/* Additional table attribute replacing the 8bit in the header, was
+	 * required to allow more than 256 tables. */
+	NLA_PUT_U32(msg, FRA_TABLE, tmpl->r_table);
 
-	if (tmpl->ce_mask & RULE_ATTR_DST) {
-		frh.dst_len = nl_addr_get_prefixlen(tmpl->r_dst);
+	if (tmpl->ce_mask & RULE_ATTR_SRC)
+		NLA_PUT_ADDR(msg, FRA_SRC, tmpl->r_src);
+
+	if (tmpl->ce_mask & RULE_ATTR_DST) 
 		NLA_PUT_ADDR(msg, FRA_DST, tmpl->r_dst);
-	}
 
 	if (tmpl->ce_mask & RULE_ATTR_IIFNAME)
 		NLA_PUT_STRING(msg, FRA_IIFNAME, tmpl->r_iifname);
@@ -421,6 +427,7 @@ nla_put_failure:
  * Build netlink request message to add a new rule
  * @arg tmpl		template with data of new rule
  * @arg flags		additional netlink message flags
+ * @arg result		Result pointer
  *
  * Builds a new netlink message requesting a addition of a new
  * rule. The netlink message header isn't fully equipped with
@@ -428,7 +435,7 @@ nla_put_failure:
  * or supplemented as needed. \a tmpl must contain the attributes of the new
  * address set via \c rtnl_rule_set_* functions.
  * 
- * @return The netlink message
+ * @return 0 on success or a negative error code.
  */
 int rtnl_rule_build_add_request(struct rtnl_rule *tmpl, int flags,
 				struct nl_msg **result)
@@ -476,6 +483,7 @@ int rtnl_rule_add(struct nl_sock *sk, struct rtnl_rule *tmpl, int flags)
  * Build a netlink request message to delete a rule
  * @arg rule		rule to delete
  * @arg flags		additional netlink message flags
+ * @arg result		Result pointer
  *
  * Builds a new netlink message requesting a deletion of a rule.
  * The netlink message header isn't fully equipped with all relevant
@@ -483,7 +491,7 @@ int rtnl_rule_add(struct nl_sock *sk, struct rtnl_rule *tmpl, int flags)
  * or supplemented as needed. \a rule must point to an existing
  * address.
  *
- * @return The netlink message
+ * @return 0 on success or a negative error code.
  */
 int rtnl_rule_build_delete_request(struct rtnl_rule *rule, int flags,
 				   struct nl_msg **result)

@@ -18,11 +18,11 @@
  * @{
  */
 
-#include <netlink-local.h>
-#include <netlink-tc.h>
+#include <netlink-private/netlink.h>
+#include <netlink-private/tc.h>
 #include <netlink/netlink.h>
 #include <netlink/utils.h>
-#include <netlink/route/tc-api.h>
+#include <netlink-private/route/tc-api.h>
 #include <netlink/route/qdisc.h>
 #include <netlink/route/qdisc/netem.h>
 
@@ -145,7 +145,8 @@ static void netem_dump_line(struct rtnl_tc *tc, void *data,
 		nl_dump(p, "limit %d", netem->qnm_limit);
 }
 
-int netem_msg_fill_raw(struct rtnl_tc *tc, void *data, struct nl_msg *msg)
+static int netem_msg_fill_raw(struct rtnl_tc *tc, void *data,
+			      struct nl_msg *msg)
 {
 	int err = 0;
 	struct tc_netem_qopt opts;
@@ -825,8 +826,9 @@ int rtnl_netem_set_delay_distribution(struct rtnl_qdisc *qdisc, const char *dist
 	if (!(netem = rtnl_tc_data(TC_CAST(qdisc))))
 		BUG();
 		
-	FILE *f = NULL;
-	int i, n = 0;
+	FILE *f;
+	int n = 0;
+	size_t i;
 	size_t len = 2048;
 	char *line;
 	char name[NAME_MAX];
@@ -840,9 +842,10 @@ int rtnl_netem_set_delay_distribution(struct rtnl_qdisc *qdisc, const char *dist
 	/* Check several locations for the dist file */
 	char *test_path[] = { "", "./", "/usr/lib/tc/", "/usr/local/lib/tc/" };
 	
-	for (i = 0; i < sizeof(test_path) && f == NULL; i++) {
+	for (i = 0; i < ARRAY_SIZE(test_path); i++) {
 		snprintf(name, NAME_MAX, "%s%s%s", test_path[i], dist_type, dist_suffix);
-		f = fopen(name, "r");
+		if ((f = fopen(name, "r")))
+			break;
 	}
 	
 	if ( f == NULL )

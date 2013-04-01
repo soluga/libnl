@@ -39,13 +39,16 @@
  * @{
  */
 
-#include <netlink-local.h>
+#include <netlink-private/netlink.h>
 #include <netlink/netlink.h>
 #include <netlink/utils.h>
 #include <netlink/route/link.h>
-#include <netlink/route/link/api.h>
+#include <netlink-private/route/link/api.h>
 
 static NL_LIST_HEAD(info_ops);
+
+/* lock protecting info_ops and af_ops */
+static NL_RW_LOCK(info_lock);
 
 static struct rtnl_link_info_ops *__rtnl_link_info_ops_lookup(const char *name)
 {
@@ -75,8 +78,10 @@ struct rtnl_link_info_ops *rtnl_link_info_ops_lookup(const char *name)
 {
 	struct rtnl_link_info_ops *ops;
 
+	nl_write_lock(&info_lock);
 	if ((ops = __rtnl_link_info_ops_lookup(name)))
 		ops->io_refcnt++;
+	nl_write_unlock(&info_lock);
 
 	return ops;
 }
@@ -105,17 +110,24 @@ void rtnl_link_info_ops_put(struct rtnl_link_info_ops *ops)
  */
 int rtnl_link_register_info(struct rtnl_link_info_ops *ops)
 {
+	int err = 0;
+
 	if (ops->io_name == NULL)
 		return -NLE_INVAL;
 
-	if (__rtnl_link_info_ops_lookup(ops->io_name))
-		return -NLE_EXIST;
+	nl_write_lock(&info_lock);
+	if (__rtnl_link_info_ops_lookup(ops->io_name)) {
+		err = -NLE_EXIST;
+		goto errout;
+	}
 
 	NL_DBG(1, "Registered link info operations %s\n", ops->io_name);
 
 	nl_list_add_tail(&ops->io_list, &info_ops);
+errout:
+	nl_write_unlock(&info_lock);
 
-	return 0;
+	return err;
 }
 
 /**
@@ -134,22 +146,30 @@ int rtnl_link_register_info(struct rtnl_link_info_ops *ops)
 int rtnl_link_unregister_info(struct rtnl_link_info_ops *ops)
 {
 	struct rtnl_link_info_ops *t;
+	int err = -NLE_OPNOTSUPP;
+
+	nl_write_lock(&info_lock);
 
 	nl_list_for_each_entry(t, &info_ops, io_list) {
 		if (t == ops) {
-			if (t->io_refcnt > 0)
-				return -NLE_BUSY;
+			if (t->io_refcnt > 0) {
+				err = -NLE_BUSY;
+				goto errout;
+			}
 
 			nl_list_del(&t->io_list);
 
 			NL_DBG(1, "Unregistered link info operations %s\n",
 				ops->io_name);
-
-			return 0;
+			err = 0;
+			goto errout;
 		}
 	}
 
-	return -NLE_OPNOTSUPP;
+errout:
+	nl_write_unlock(&info_lock);
+
+	return err;
 }
 
 /** @} */
@@ -174,8 +194,10 @@ struct rtnl_link_af_ops *rtnl_link_af_ops_lookup(const unsigned int family)
 	if (family == AF_UNSPEC || family >= AF_MAX)
 		return NULL;
 
+	nl_write_lock(&info_lock);
 	if (af_ops[family])
 		af_ops[family]->ao_refcnt++;
+	nl_write_unlock(&info_lock);
 
 	return af_ops[family];
 }
@@ -262,11 +284,16 @@ void *rtnl_link_af_data(const struct rtnl_link *link,
  */
 int rtnl_link_af_register(struct rtnl_link_af_ops *ops)
 {
+	int err = 0;
+
 	if (ops->ao_family == AF_UNSPEC || ops->ao_family >= AF_MAX)
 		return -NLE_INVAL;
 
-	if (af_ops[ops->ao_family])
-		return -NLE_EXIST;
+	nl_write_lock(&info_lock);
+	if (af_ops[ops->ao_family]) {
+		err = -NLE_EXIST;
+		goto errout;
+	}
 
 	ops->ao_refcnt = 0;
 	af_ops[ops->ao_family] = ops;
@@ -274,7 +301,10 @@ int rtnl_link_af_register(struct rtnl_link_af_ops *ops)
 	NL_DBG(1, "Registered link address family operations %u\n",
 		ops->ao_family);
 
-	return 0;
+errout:
+	nl_write_unlock(&info_lock);
+
+	return err;
 }
 
 /**
@@ -293,21 +323,72 @@ int rtnl_link_af_register(struct rtnl_link_af_ops *ops)
  */
 int rtnl_link_af_unregister(struct rtnl_link_af_ops *ops)
 {
+	int err = -NLE_INVAL;
+
 	if (!ops)
-		return -NLE_INVAL;
+		goto errout;
 
-	if (!af_ops[ops->ao_family])
-		return -NLE_OBJ_NOTFOUND;
+	nl_write_lock(&info_lock);
+	if (!af_ops[ops->ao_family]) {
+		err = -NLE_OBJ_NOTFOUND;
+		goto errout;
+	}
 
-	if (ops->ao_refcnt > 0)
-		return -NLE_BUSY;
+	if (ops->ao_refcnt > 0) {
+		err = -NLE_BUSY;
+		goto errout;
+	}
 
 	af_ops[ops->ao_family] = NULL;
 
 	NL_DBG(1, "Unregistered link address family operations %u\n",
 		ops->ao_family);
 
-	return 0;
+errout:
+	nl_write_lock(&info_lock);
+
+	return err;
+}
+
+/**
+ * Compare af data for a link address family
+ * @arg a		Link object a
+ * @arg b		Link object b
+ * @arg family		af data family
+ *
+ * This function will compare af_data between two links
+ * a and b of family given by arg family
+ *
+ * @return 0 if address family specific data matches or is not present
+ * or != 0 if it mismatches.
+ */
+int rtnl_link_af_data_compare(struct rtnl_link *a, struct rtnl_link *b,
+			      int family)
+{
+	struct rtnl_link_af_ops *af_ops;
+	int ret = 0;
+
+	if (!a->l_af_data[family] && !b->l_af_data[family])
+		return 0;
+
+	if (!a->l_af_data[family] || !b->l_af_data[family])
+		return ~0;
+
+	af_ops = rtnl_link_af_ops_lookup(family);
+	if (!af_ops)
+		return ~0;
+
+	if (af_ops->ao_compare == NULL) {
+		ret = ~0;
+		goto out;
+	}
+
+	ret = af_ops->ao_compare(a, b, family, ~0, 0);
+
+out:
+	rtnl_link_af_ops_put(af_ops);
+
+	return ret;
 }
 
 /** @} */

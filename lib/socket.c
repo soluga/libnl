@@ -6,16 +6,30 @@
  *	License as published by the Free Software Foundation version 2.1
  *	of the License.
  *
- * Copyright (c) 2003-2008 Thomas Graf <tgraf@suug.ch>
+ * Copyright (c) 2003-2012 Thomas Graf <tgraf@suug.ch>
  */
 
 /**
- * @ingroup core
+ * @ingroup core_types
  * @defgroup socket Socket
+ *
+ * Representation of a netlink socket
+ *
+ * Related sections in the development guide:
+ * - @core_doc{core_sockets, Netlink Sockets}
+ *
  * @{
+ *
+ * Header
+ * ------
+ * ~~~~{.c}
+ * #include <netlink/socket.h>
+ * ~~~~
  */
 
-#include <netlink-local.h>
+#include "defs.h"
+
+#include <netlink-private/netlink.h>
 #include <netlink/netlink.h>
 #include <netlink/utils.h>
 #include <netlink/handlers.h>
@@ -43,11 +57,14 @@ static void __init init_default_cb(void)
 }
 
 static uint32_t used_ports_map[32];
+static NL_RW_LOCK(port_map_lock);
 
 static uint32_t generate_local_port(void)
 {
 	int i, n;
 	uint32_t pid = getpid() & 0x3FFFFF;
+
+	nl_write_lock(&port_map_lock);
 
 	for (i = 0; i < 32; i++) {
 		if (used_ports_map[i] == 0xFFFFFFFF)
@@ -62,10 +79,14 @@ static uint32_t generate_local_port(void)
 
 			/* PID_MAX_LIMIT is currently at 2^22, leaving 10 bit
 			 * to, i.e. 1024 unique ports per application. */
-			return pid + (n << 22);
 
+			nl_write_unlock(&port_map_lock);
+
+			return pid + (n << 22);
 		}
 	}
+
+	nl_write_unlock(&port_map_lock);
 
 	/* Out of sockets in our own PID namespace, what to do? FIXME */
 	return UINT_MAX;
@@ -79,7 +100,10 @@ static void release_local_port(uint32_t port)
 		return;
 	
 	nr = port >> 22;
-	used_ports_map[nr / 32] &= ~(1 << nr % 32);
+
+	nl_write_lock(&port_map_lock);
+	used_ports_map[nr / 32] &= ~(1 << (nr % 32));
+	nl_write_unlock(&port_map_lock);
 }
 
 /**
@@ -256,7 +280,14 @@ void nl_socket_set_local_port(struct nl_sock *sk, uint32_t port)
 {
 	if (port == 0) {
 		port = generate_local_port(); 
-		sk->s_flags &= ~NL_OWN_PORT;
+		/*
+		 * Release local port after generation of a new one to be
+		 * able to change local port using nl_socket_set_local_port(, 0)
+		 */
+		if (!(sk->s_flags & NL_OWN_PORT))
+			release_local_port(sk->s_local.nl_pid);
+		else
+			sk->s_flags &= ~NL_OWN_PORT;
 	} else  {
 		if (!(sk->s_flags & NL_OWN_PORT))
 			release_local_port(sk->s_local.nl_pid);
@@ -300,13 +331,17 @@ int nl_socket_add_memberships(struct nl_sock *sk, int group, ...)
 	va_start(ap, group);
 
 	while (group != 0) {
-		if (group < 0)
+		if (group < 0) {
+			va_end(ap);
 			return -NLE_INVAL;
+		}
 
 		err = setsockopt(sk->s_fd, SOL_NETLINK, NETLINK_ADD_MEMBERSHIP,
 						 &group, sizeof(group));
-		if (err < 0)
+		if (err < 0) {
+			va_end(ap);
 			return -nl_syserr2nlerr(errno);
+		}
 
 		group = va_arg(ap, int);
 	}
@@ -344,13 +379,17 @@ int nl_socket_drop_memberships(struct nl_sock *sk, int group, ...)
 	va_start(ap, group);
 
 	while (group != 0) {
-		if (group < 0)
+		if (group < 0) {
+			va_end(ap);
 			return -NLE_INVAL;
+		}
 
 		err = setsockopt(sk->s_fd, SOL_NETLINK, NETLINK_DROP_MEMBERSHIP,
 						 &group, sizeof(group));
-		if (err < 0)
+		if (err < 0) {
+			va_end(ap);
 			return -nl_syserr2nlerr(errno);
+		}
 
 		group = va_arg(ap, int);
 	}
@@ -417,6 +456,15 @@ void nl_socket_set_peer_groups(struct nl_sock *sk, uint32_t groups)
  * @{
  */
 
+/**
+ * Return the file descriptor of the backing socket
+ * @arg sk		Netlink socket
+ *
+ * Only valid after calling nl_connect() to create and bind the respective
+ * socket.
+ *
+ * @return File descriptor or -1 if not available.
+ */
 int nl_socket_get_fd(const struct nl_sock *sk)
 {
 	return sk->s_fd;
@@ -476,12 +524,12 @@ void nl_socket_set_cb(struct nl_sock *sk, struct nl_cb *cb)
 }
 
 /**
- * Modify the callback handler associated to the socket
+ * Modify the callback handler associated with the socket
  * @arg sk		Netlink socket.
  * @arg type		which type callback to set
  * @arg kind		kind of callback
  * @arg func		callback function
- * @arg arg		argument to be passwd to callback function
+ * @arg arg		argument to be passed to callback function
  *
  * @see nl_cb_set
  */
@@ -490,6 +538,21 @@ int nl_socket_modify_cb(struct nl_sock *sk, enum nl_cb_type type,
 			void *arg)
 {
 	return nl_cb_set(sk->s_cb, type, kind, func, arg);
+}
+
+/**
+ * Modify the error callback handler associated with the socket
+ * @arg sk		Netlink socket.
+ * @arg kind		kind of callback
+ * @arg func		callback function
+ * @arg arg		argument to be passed to callback function
+ *
+ * @see nl_cb_err
+ */
+int nl_socket_modify_err_cb(struct nl_sock *sk, enum nl_cb_kind kind,
+			    nl_recvmsg_err_cb_t func, void *arg)
+{
+	return nl_cb_err(sk->s_cb, kind, func, arg);
 }
 
 /** @} */
@@ -538,6 +601,36 @@ int nl_socket_set_buffer_size(struct nl_sock *sk, int rxbuf, int txbuf)
 	sk->s_flags |= NL_SOCK_BUFSIZE_SET;
 
 	return 0;
+}
+
+/**
+ * Set default message buffer size of netlink socket.
+ * @arg sk		Netlink socket.
+ * @arg bufsize		Default message buffer size in bytes.
+ *
+ * Sets the default message buffer size to the specified length in bytes.
+ * The default message buffer size limits the maximum message size the
+ * socket will be able to receive. It is generally recommneded to specify
+ * a buffer size no less than the size of a memory page.
+ *
+ * @return 0 on success or a negative error code.
+ */
+int nl_socket_set_msg_buf_size(struct nl_sock *sk, size_t bufsize)
+{
+	sk->s_bufsize = bufsize;
+
+	return 0;
+}
+
+/**
+ * Get default message buffer size of netlink socket.
+ * @arg sk		Netlink socket.
+ *
+ * @return Size of default message buffer.
+ */
+size_t nl_socket_get_msg_buf_size(struct nl_sock *sk)
+{
+	return sk->s_bufsize;
 }
 
 /**

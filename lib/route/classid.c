@@ -6,7 +6,7 @@
  *	License as published by the Free Software Foundation version 2.1
  *	of the License.
  *
- * Copyright (c) 2010 Thomas Graf <tgraf@suug.ch>
+ * Copyright (c) 2010-2013 Thomas Graf <tgraf@suug.ch>
  */
 
 /**
@@ -15,8 +15,8 @@
  * @{
  */
 
-#include <netlink-local.h>
-#include <netlink-tc.h>
+#include <netlink-private/netlink.h>
+#include <netlink-private/tc.h>
 #include <netlink/netlink.h>
 #include <netlink/utils.h>
 #include <netlink/route/tc.h>
@@ -41,7 +41,7 @@ static int compare_id(const void *pa, const void *pb)
 
 	if (ma->classid < mb->classid)
 		return -1;
-	
+
 	if (ma->classid > mb->classid)
 		return 1;
 
@@ -106,7 +106,7 @@ static char *name_lookup(const uint32_t classid)
  * @return The destination buffer or the type encoded in hexidecimal
  *         form if no match was found.
  */
-char * rtnl_tc_handle2str(uint32_t handle, char *buf, size_t len)
+char *rtnl_tc_handle2str(uint32_t handle, char *buf, size_t len)
 {
 	if (TC_H_ROOT == handle)
 		snprintf(buf, len, "root");
@@ -120,11 +120,11 @@ char * rtnl_tc_handle2str(uint32_t handle, char *buf, size_t len)
 		if ((name = name_lookup(handle)))
 			snprintf(buf, len, "%s", name);
 		else if (0 == TC_H_MAJ(handle))
-			snprintf(buf, len, ":%02x", TC_H_MIN(handle));
+			snprintf(buf, len, ":%x", TC_H_MIN(handle));
 		else if (0 == TC_H_MIN(handle))
-			snprintf(buf, len, "%02x:", TC_H_MAJ(handle) >> 16);
+			snprintf(buf, len, "%x:", TC_H_MAJ(handle) >> 16);
 		else
-			snprintf(buf, len, "%02x:%02x",
+			snprintf(buf, len, "%x:%x",
 				TC_H_MAJ(handle) >> 16, TC_H_MIN(handle));
 	}
 
@@ -154,7 +154,8 @@ char * rtnl_tc_handle2str(uint32_t handle, char *buf, size_t len)
 int rtnl_tc_str2handle(const char *str, uint32_t *res)
 {
 	char *colon, *end;
-	uint32_t h, err;
+	uint32_t h;
+	int err;
 
 	if (!strcasecmp(str, "root")) {
 		*res = TC_H_ROOT;
@@ -163,6 +164,11 @@ int rtnl_tc_str2handle(const char *str, uint32_t *res)
 
 	if (!strcasecmp(str, "none")) {
 		*res = TC_H_UNSPEC;
+		return 0;
+	}
+
+	if (!strcasecmp(str, "ingress")) {
+		*res = TC_H_INGRESS;
 		return 0;
 	}
 
@@ -217,7 +223,7 @@ not_a_number:
 		} else {
 			/* XXXX:YYYY */
 			uint32_t l;
-			
+
 update:
 			l = strtoul(colon+1, &end, 16);
 
@@ -296,7 +302,7 @@ static int classid_map_add(uint32_t classid, const char *name)
 
 /**
  * (Re-)read classid file
- * 
+ *
  * Rereads the contents of the classid file (typically found at the location
  * /etc/libnl/classid) and refreshes the classid maps.
  *
@@ -305,12 +311,13 @@ static int classid_map_add(uint32_t classid, const char *name)
 int rtnl_tc_read_classid_file(void)
 {
 	static time_t last_read;
-	struct stat st = {0};
+	struct stat st;
 	char buf[256], *path;
 	FILE *fd;
 	int err;
 
-	asprintf(&path, "%s/classid", SYSCONFDIR);
+	if (build_sysconf_path(&path, "classid") < 0)
+		return -NLE_NOMEM;
 
 	/* if stat fails, just (re-)read the file */
 	if (stat(path, &st) == 0) {
@@ -392,7 +399,7 @@ int rtnl_classid_generate(const char *name, uint32_t *result, uint32_t parent)
 
 	NL_DBG(2, "Generated new classid %#x\n", classid);
 
-	if (asprintf(&path, "%s/classid", SYSCONFDIR) < 0)
+	if (build_sysconf_path(&path, "classid") < 0)
 		return -NLE_NOMEM;
 
 	if (!(fd = fopen(path, "a"))) {
@@ -408,7 +415,7 @@ int rtnl_classid_generate(const char *name, uint32_t *result, uint32_t parent)
 	fclose(fd);
 
 	if ((err = classid_map_add(classid, name)) < 0) {
-		/* 
+		/*
 		 * Error adding classid map, re-read classid file is best
 		 * option here. It is likely to fail as well but better
 		 * than nothing, entry was added to the file already anyway.
@@ -434,7 +441,16 @@ static void __init classid_init(void)
 		nl_init_list_head(&tbl_name[i]);
 
 	if ((err = rtnl_tc_read_classid_file()) < 0)
-		fprintf(stderr, "Failed to read classid file: %s\n", nl_geterror(err));
+		NL_DBG(1, "Failed to read classid file: %s\n", nl_geterror(err));
 }
 
+static void free_map(void *map) {
+	free(((struct classid_map *)map)->name);
+	free(map);
+};
+
+static void __exit classid_exit(void)
+{
+	tdestroy(id_root, free_map);
+}
 /** @} */

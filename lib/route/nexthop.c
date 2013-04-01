@@ -15,7 +15,7 @@
  * @{
  */
 
-#include <netlink-local.h>
+#include <netlink-private/netlink.h>
 #include <netlink/netlink.h>
 #include <netlink/utils.h>
 #include <netlink/route/rtnl.h>
@@ -109,7 +109,7 @@ static void nh_dump_line(struct rtnl_nexthop *nh, struct nl_dump_params *dp)
 	struct nl_cache *link_cache;
 	char buf[128];
 
-	link_cache = nl_cache_mngt_require("route/link");
+	link_cache = nl_cache_mngt_require_safe("route/link");
 
 	nl_dump(dp, "via");
 
@@ -128,6 +128,9 @@ static void nh_dump_line(struct rtnl_nexthop *nh, struct nl_dump_params *dp)
 	}
 
 	nl_dump(dp, " ");
+
+	if (link_cache)
+		nl_cache_put(link_cache);
 }
 
 static void nh_dump_details(struct rtnl_nexthop *nh, struct nl_dump_params *dp)
@@ -135,7 +138,7 @@ static void nh_dump_details(struct rtnl_nexthop *nh, struct nl_dump_params *dp)
 	struct nl_cache *link_cache;
 	char buf[128];
 
-	link_cache = nl_cache_mngt_require("route/link");
+	link_cache = nl_cache_mngt_require_safe("route/link");
 
 	nl_dump(dp, "nexthop");
 
@@ -164,6 +167,9 @@ static void nh_dump_details(struct rtnl_nexthop *nh, struct nl_dump_params *dp)
 	if (nh->ce_mask & NH_ATTR_FLAGS)
 		nl_dump(dp, " <%s>", rtnl_route_nh_flags2str(nh->rtnh_flags,
 							buf, sizeof(buf)));
+
+	if (link_cache)
+		nl_cache_put(link_cache);
 }
 
 void rtnl_route_nh_dump(struct rtnl_nexthop *nh, struct nl_dump_params *dp)
@@ -211,6 +217,7 @@ int rtnl_route_nh_get_ifindex(struct rtnl_nexthop *nh)
 	return nh->rtnh_ifindex;
 }	
 
+/* FIXME: Convert to return an int */
 void rtnl_route_nh_set_gateway(struct rtnl_nexthop *nh, struct nl_addr *addr)
 {
 	struct nl_addr *old = nh->rtnh_gateway;

@@ -9,11 +9,11 @@
 
 libnl is a set of libraries to deal with the netlink protocol and some
 of the high level protocols implemented on top of it. The goal is to
-provide APIs on different levels of abstraction. The core library libnl.so
+provide APIs on different levels of abstraction. The core library libnl
 provides a fundamental set of functions to deal with sockets, construct
 messages, and send/receive those messages. Additional high level interfaces
 for several individual netlink protocols are provided in separate
-libraries (e.g. \ref route_doc "nl-route.so", \ref genl_doc "nl-genl.so", ...).
+libraries (e.g. "nl-route", "nl-genl", ...).
 
 The library is designed to ensure that all components are optional, i.e.
 even though the core library provides a caching system which allows to
@@ -28,26 +28,14 @@ version is used with a considerably older kernel.
 
 \section main_toc Table of Contents
 
-- \subpage core_doc "1. Netlink Core Library (-lnl)"
-- \subpage route_doc "2. Routing Netlink Library (-lnl-route)"
-- \subpage genl_doc "3. Generic Netlink Library (-lnl-genl)"
-- \subpage nf_doc "4. Netfilter Netlink Library (-lnl-nf)"
-
 \section main_trees GIT Trees
 
 \subsection tree_dev Development Tree
 
 @code
-git://git.kernel.org/pub/scm/libs/netlink/libnl.git
+git://git.infradead.org/users/tgr/libnl.git
 @endcode
-- Web: http://www.kernel.org/pub/scm/libs/netlink/libnl.git
-
-\subsection tree_stable Stable Tree
-
-@code
-git://git.kernel.org/pub/scm/libs/netlink/libnl-stable.git
-@endcode
-- Web: http://www.kernel.org/pub/scm/libs/netlink/libnl-stable.git
+- Web: http://git.infradead.org/users/tgr/libnl.git
 
 \section main_website Website
 
@@ -55,7 +43,7 @@ git://git.kernel.org/pub/scm/libs/netlink/libnl-stable.git
 
 \section main_mailinglist Mailinglist
 
-Please post question and patches to the libnl mailinglist:
+Please post questions and patches to the libnl mailinglist:
 
 @code
 libnl@lists.infradead.org

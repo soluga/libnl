@@ -57,11 +57,11 @@
  */
 
 
-#include <netlink-local.h>
+#include <netlink-private/netlink.h>
 #include <netlink/netlink.h>
 #include <netlink/attr.h>
 #include <netlink/route/rtnl.h>
-#include <netlink/route/link/api.h>
+#include <netlink-private/route/link/api.h>
 
 /** @cond SKIP */
 struct inet_data
@@ -166,7 +166,7 @@ const char *rtnl_link_inet_devconf2str(int type, char *buf, size_t len)
 			  ARRAY_SIZE(inet_devconf));
 }
 
-unsigned int rtnl_link_inet_str2devconf(const char *name)
+int rtnl_link_inet_str2devconf(const char *name)
 {
 	return __str2type(name, inet_devconf, ARRAY_SIZE(inet_devconf));
 }

@@ -2,10 +2,18 @@
 
 SUBDIRS = lib
 
-AM_CPPFLAGS  = -Wall -I${top_srcdir}/include -I${top_builddir}/include -D_GNU_SOURCE
-AM_LDFLAGS = -L${top_builddir}/lib -L${top_builddir}/src/lib -lnl-cli -lnl -lnl-nf -lnl-genl -lnl-route -lnl-dect
+AM_CPPFLAGS  = -Wall -I${top_srcdir}/include -I${top_builddir}/include -D_GNU_SOURCE -DSYSCONFDIR=\"$(sysconfdir)/libnl\"
+
+LDADD = \
+	${top_builddir}/src/lib/libnl-cli-3.la \
+	${top_builddir}/lib/libnl-3.la \
+	${top_builddir}/lib/libnl-nf-3.la \
+	${top_builddir}/lib/libnl-genl-3.la \
+	${top_builddir}/lib/libnl-route-3.la \
+	$(top_builddir)/lib/libnl-dect-3.la
 
 sbin_PROGRAMS = \
+	genl-ctrl-list \
 	nl-qdisc-add nl-qdisc-list nl-qdisc-delete \
 	nl-class-add nl-class-list nl-class-delete \
 	nl-cls-add nl-cls-list nl-cls-delete \
@@ -14,8 +22,8 @@ sbin_PROGRAMS = \
 	nl-link-list
 
 noinst_PROGRAMS = \
-	genl-ctrl-list \
 	nf-ct-list nf-log nf-queue nf-monitor \
+	nf-exp-list nf-exp-add nf-exp-delete \
 	nl-addr-add nl-addr-delete nl-addr-list \
 	nl-link-set nl-link-stats \
 	nl-link-ifindex2name nl-link-name2ifindex \
@@ -28,6 +36,8 @@ noinst_PROGRAMS = \
 	nl-fib-lookup \
 	nl-list-caches nl-list-sockets \
 	nl-util-addr \
+	nl-link-enslave \
+	nl-link-release \
 	dect-transceiver-bind dect-transceiver-list \
 	dect-cell-add dect-cell-delete dect-cell-list \
 	dect-cluster-add dect-cluster-delete dect-cluster-list \
@@ -39,6 +49,10 @@ nf_ct_list_SOURCES = nf-ct-list.c
 nf_log_SOURCES = nf-log.c
 nf_queue_SOURCES = nf-queue.c 
 nf_monitor_SOURCES = nf-monitor.c
+
+nf_exp_list_SOURCES = nf-exp-list.c 
+nf_exp_add_SOURCES = nf-exp-add.c 
+nf_exp_delete_SOURCES = nf-exp-delete.c 
 
 nl_addr_add_SOURCES = nl-addr-add.c
 nl_addr_delete_SOURCES = nl-addr-delete.c

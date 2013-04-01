@@ -6,16 +6,22 @@
  *	License as published by the Free Software Foundation version 2.1
  *	of the License.
  *
- * Copyright (c) 2008-2010 Thomas Graf <tgraf@suug.ch>
+ * Copyright (c) 2008-2013 Thomas Graf <tgraf@suug.ch>
  */
 
-#include <netlink-local.h>
-#include <netlink-tc.h>
+#include <netlink-private/netlink.h>
+#include <netlink-private/tc.h>
 #include <netlink/netlink.h>
 #include <netlink/route/cls/ematch.h>
 
-static int container_parse(struct rtnl_ematch *e, void *data, size_t len)
+static int container_parse(struct rtnl_ematch *e, void *data, size_t len __attribute__((unused)))
 {
+	/*
+	The kernel may provide more than 4 bytes of data in the future and we want
+	older libnl versions to be ok with that. We want interfaces to be growable
+	so we only ever enforce a minimum data length and copy as much as we are
+	aware of. Thomas Graf.
+	*/
 	memcpy(e->e_data, data, sizeof(uint32_t));
 
 	return 0;

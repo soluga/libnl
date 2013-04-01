@@ -6,7 +6,7 @@
  *	License as published by the Free Software Foundation version 2.1
  *	of the License.
  *
- * Copyright (c) 2003-2008 Thomas Graf <tgraf@suug.ch>
+ * Copyright (c) 2003-2012 Thomas Graf <tgraf@suug.ch>
  * Copyright (c) 2003-2006 Baruch Even <baruch@ev-en.org>,
  *                         Mediatrix Telecom, inc. <ericb@mediatrix.com>
  */
@@ -106,7 +106,7 @@
  * @{
  */
 
-#include <netlink-local.h>
+#include <netlink-private/netlink.h>
 #include <netlink/netlink.h>
 #include <netlink/route/rtnl.h>
 #include <netlink/route/addr.h>
@@ -151,12 +151,18 @@ static void addr_free_data(struct nl_object *obj)
 	nl_addr_put(addr->a_bcast);
 	nl_addr_put(addr->a_multicast);
 	nl_addr_put(addr->a_anycast);
+	rtnl_link_put(addr->a_link);
 }
 
 static int addr_clone(struct nl_object *_dst, struct nl_object *_src)
 {
 	struct rtnl_addr *dst = nl_object_priv(_dst);
 	struct rtnl_addr *src = nl_object_priv(_src);
+
+	if (src->a_link) {
+		nl_object_get(OBJ_CAST(src->a_link));
+		dst->a_link = src->a_link;
+	}
 
 	if (src->a_peer)
 		if (!(dst->a_peer = nl_addr_clone(src->a_peer)))
@@ -193,7 +199,9 @@ static int addr_msg_parser(struct nl_cache_ops *ops, struct sockaddr_nl *who,
 	struct rtnl_addr *addr;
 	struct ifaddrmsg *ifa;
 	struct nlattr *tb[IFA_MAX+1];
-	int err, peer_prefix = 0, family;
+	int err, family;
+	struct nl_cache *link_cache;
+	struct nl_addr *plen_addr = NULL;
 
 	addr = rtnl_addr_alloc();
 	if (!addr)
@@ -220,6 +228,7 @@ static int addr_msg_parser(struct nl_cache_ops *ops, struct sockaddr_nl *who,
 		addr->ce_mask |= ADDR_ATTR_LABEL;
 	}
 
+	/* IPv6 only */
 	if (tb[IFA_CACHEINFO]) {
 		struct ifa_cacheinfo *ca;
 		
@@ -236,6 +245,7 @@ static int addr_msg_parser(struct nl_cache_ops *ops, struct sockaddr_nl *who,
 		if (!addr->a_local)
 			goto errout_nomem;
 		addr->ce_mask |= ADDR_ATTR_LOCAL;
+		plen_addr = addr->a_local;
 	}
 
 	if (tb[IFA_ADDRESS]) {
@@ -255,13 +265,15 @@ static int addr_msg_parser(struct nl_cache_ops *ops, struct sockaddr_nl *who,
 		} else {
 			addr->a_peer = a;
 			addr->ce_mask |= ADDR_ATTR_PEER;
-			peer_prefix = 1;
 		}
+
+		plen_addr = a;
 	}
 
-	nl_addr_set_prefixlen(peer_prefix ? addr->a_peer : addr->a_local,
-			      addr->a_prefixlen);
+	if (plen_addr)
+		nl_addr_set_prefixlen(plen_addr, addr->a_prefixlen);
 
+	/* IPv4 only */
 	if (tb[IFA_BROADCAST]) {
 		addr->a_bcast = nl_addr_alloc_attr(tb[IFA_BROADCAST], family);
 		if (!addr->a_bcast)
@@ -270,6 +282,7 @@ static int addr_msg_parser(struct nl_cache_ops *ops, struct sockaddr_nl *who,
 		addr->ce_mask |= ADDR_ATTR_BROADCAST;
 	}
 
+	/* IPv6 only */
 	if (tb[IFA_MULTICAST]) {
 		addr->a_multicast = nl_addr_alloc_attr(tb[IFA_MULTICAST],
 						       family);
@@ -279,6 +292,7 @@ static int addr_msg_parser(struct nl_cache_ops *ops, struct sockaddr_nl *who,
 		addr->ce_mask |= ADDR_ATTR_MULTICAST;
 	}
 
+	/* IPv6 only */
 	if (tb[IFA_ANYCAST]) {
 		addr->a_anycast = nl_addr_alloc_attr(tb[IFA_ANYCAST],
 						       family);
@@ -286,6 +300,17 @@ static int addr_msg_parser(struct nl_cache_ops *ops, struct sockaddr_nl *who,
 			goto errout_nomem;
 
 		addr->ce_mask |= ADDR_ATTR_ANYCAST;
+	}
+
+	if ((link_cache = __nl_cache_mngt_require("route/link"))) {
+		struct rtnl_link *link;
+
+		if ((link = rtnl_link_get(link_cache, addr->a_ifindex))) {
+			rtnl_addr_set_link(addr, link);
+
+			/* rtnl_addr_set_link incs refcnt */
+			rtnl_link_put(link);
+		}
 	}
 
 	err = pp->pp_cb((struct nl_object *) addr, pp);
@@ -310,7 +335,7 @@ static void addr_dump_line(struct nl_object *obj, struct nl_dump_params *p)
 	struct nl_cache *link_cache;
 	char buf[128];
 
-	link_cache = nl_cache_mngt_require("route/link");
+	link_cache = nl_cache_mngt_require_safe("route/link");
 
 	if (addr->ce_mask & ADDR_ATTR_LOCAL)
 		nl_dump_line(p, "%s",
@@ -339,6 +364,9 @@ static void addr_dump_line(struct nl_object *obj, struct nl_dump_params *p)
 		nl_dump(p, " <%s>", buf);
 
 	nl_dump(p, "\n");
+
+	if (link_cache)
+		nl_cache_put(link_cache);
 }
 
 static void addr_dump_details(struct nl_object *obj, struct nl_dump_params *p)
@@ -478,6 +506,42 @@ int rtnl_addr_alloc_cache(struct nl_sock *sk, struct nl_cache **result)
 	return nl_cache_alloc_and_fill(&rtnl_addr_ops, sk, result);
 }
 
+/**
+ * Search address in cache
+ * @arg cache		Address cache
+ * @arg ifindex		Interface index of address
+ * @arg addr		Local address part
+ *
+ * Searches address cache previously allocated with rtnl_addr_alloc_cache()
+ * for an address with a matching local address.
+ *
+ * The reference counter is incremented before returning the address, therefore
+ * the reference must be given back with rtnl_addr_put() after usage.
+ *
+ * @return Address object or NULL if no match was found.
+ */
+struct rtnl_addr *rtnl_addr_get(struct nl_cache *cache, int ifindex,
+				struct nl_addr *addr)
+{
+	struct rtnl_addr *a;
+
+	if (cache->c_ops != &rtnl_addr_ops)
+		return NULL;
+
+	nl_list_for_each_entry(a, &cache->c_items, ce_list) {
+		if (ifindex && a->a_ifindex != ifindex)
+			continue;
+
+		if (a->ce_mask & ADDR_ATTR_LOCAL &&
+		    !nl_addr_cmp(a->a_local, addr)) {
+			nl_object_get((struct nl_object *) a);
+			return a;
+		}
+	}
+
+	return NULL;
+}
+
 /** @} */
 
 static int build_addr_msg(struct rtnl_addr *tmpl, int cmd, int flags,
@@ -571,7 +635,7 @@ nla_put_failure:
 int rtnl_addr_build_add_request(struct rtnl_addr *addr, int flags,
 				struct nl_msg **result)
 {
-	int required = ADDR_ATTR_IFINDEX | ADDR_ATTR_FAMILY |
+	uint32_t required = ADDR_ATTR_IFINDEX | ADDR_ATTR_FAMILY |
 		       ADDR_ATTR_PREFIXLEN | ADDR_ATTR_LOCAL;
 
 	if ((addr->ce_mask & required) != required)
@@ -644,7 +708,7 @@ int rtnl_addr_add(struct nl_sock *sk, struct rtnl_addr *addr, int flags)
 int rtnl_addr_build_delete_request(struct rtnl_addr *addr, int flags,
 				   struct nl_msg **result)
 {
-	int required = ADDR_ATTR_IFINDEX | ADDR_ATTR_FAMILY;
+	uint32_t required = ADDR_ATTR_IFINDEX | ADDR_ATTR_FAMILY;
 
 	if ((addr->ce_mask & required) != required)
 		return -NLE_MISSING_ATTR;
@@ -719,6 +783,29 @@ int rtnl_addr_get_ifindex(struct rtnl_addr *addr)
 	return addr->a_ifindex;
 }
 
+void rtnl_addr_set_link(struct rtnl_addr *addr, struct rtnl_link *link)
+{
+	rtnl_link_put(addr->a_link);
+
+	if (!link)
+		return;
+
+	nl_object_get(OBJ_CAST(link));
+	addr->a_link = link;
+	addr->a_ifindex = link->l_index;
+	addr->ce_mask |= ADDR_ATTR_IFINDEX;
+}
+
+struct rtnl_link *rtnl_addr_get_link(struct rtnl_addr *addr)
+{
+	if (addr->a_link) {
+		nl_object_get(OBJ_CAST(addr->a_link));
+		return addr->a_link;
+	}
+
+	return NULL;
+}
+
 void rtnl_addr_set_family(struct rtnl_addr *addr, int family)
 {
 	addr->a_family = family;
@@ -730,10 +817,39 @@ int rtnl_addr_get_family(struct rtnl_addr *addr)
 	return addr->a_family;
 }
 
-void rtnl_addr_set_prefixlen(struct rtnl_addr *addr, int prefix)
+/**
+ * Set the prefix length / netmask
+ * @arg addr		Address
+ * @arg prefixlen	Length of prefix (netmask)
+ *
+ * Modifies the length of the prefix. If the address object contains a peer
+ * address the prefix length will apply to it, otherwise the prefix length
+ * will apply to the local address of the address.
+ *
+ * If the address object contains a peer or local address the corresponding
+ * `struct nl_addr` will be updated with the new prefix length.
+ *
+ * @note Specifying a length of 0 will remove the prefix length alltogether.
+ *
+ * @see rtnl_addr_get_prefixlen()
+ */
+void rtnl_addr_set_prefixlen(struct rtnl_addr *addr, int prefixlen)
 {
-	addr->a_prefixlen = prefix;
-	addr->ce_mask |= ADDR_ATTR_PREFIXLEN;
+	addr->a_prefixlen = prefixlen;
+
+	if (prefixlen)
+		addr->ce_mask |= ADDR_ATTR_PREFIXLEN;
+	else
+		addr->ce_mask &= ~ADDR_ATTR_PREFIXLEN;
+
+	/*
+	 * The prefix length always applies to the peer address if
+	 * a peer address is present.
+	 */
+	if (addr->a_peer)
+		nl_addr_set_prefixlen(addr->a_peer, prefixlen);
+	else if (addr->a_local)
+		nl_addr_set_prefixlen(addr->a_local, prefixlen);
 }
 
 int rtnl_addr_get_prefixlen(struct rtnl_addr *addr)
@@ -774,17 +890,25 @@ unsigned int rtnl_addr_get_flags(struct rtnl_addr *addr)
 static inline int __assign_addr(struct rtnl_addr *addr, struct nl_addr **pos,
 			        struct nl_addr *new, int flag)
 {
-	if (addr->ce_mask & ADDR_ATTR_FAMILY) {
-		if (new->a_family != addr->a_family)
-			return -NLE_AF_MISMATCH;
-	} else
-		addr->a_family = new->a_family;
+	if (new) {
+		if (addr->ce_mask & ADDR_ATTR_FAMILY) {
+			if (new->a_family != addr->a_family)
+				return -NLE_AF_MISMATCH;
+		} else
+			addr->a_family = new->a_family;
 
-	if (*pos)
-		nl_addr_put(*pos);
+		if (*pos)
+			nl_addr_put(*pos);
 
-	*pos = nl_addr_get(new);
-	addr->ce_mask |= (flag | ADDR_ATTR_FAMILY);
+		*pos = nl_addr_get(new);
+		addr->ce_mask |= (flag | ADDR_ATTR_FAMILY);
+	} else {
+		if (*pos)
+			nl_addr_put(*pos);
+
+		*pos = NULL;
+		addr->ce_mask &= ~flag;
+	}
 
 	return 0;
 }
@@ -793,14 +917,18 @@ int rtnl_addr_set_local(struct rtnl_addr *addr, struct nl_addr *local)
 {
 	int err;
 
+	/* Prohibit local address with prefix length if peer address is present */
+	if ((addr->ce_mask & ADDR_ATTR_PEER) && local &&
+	    nl_addr_get_prefixlen(local))
+		return -NLE_INVAL;
+
 	err = __assign_addr(addr, &addr->a_local, local, ADDR_ATTR_LOCAL);
 	if (err < 0)
 		return err;
 
-	if (!(addr->ce_mask & ADDR_ATTR_PEER)) {
-		addr->a_prefixlen = nl_addr_get_prefixlen(addr->a_local);
-		addr->ce_mask |= ADDR_ATTR_PREFIXLEN;
-	}
+	/* Never overwrite the prefix length if a peer address is present */
+	if (!(addr->ce_mask & ADDR_ATTR_PEER))
+		rtnl_addr_set_prefixlen(addr, local ? nl_addr_get_prefixlen(local) : 0);
 
 	return 0;
 }
@@ -812,10 +940,16 @@ struct nl_addr *rtnl_addr_get_local(struct rtnl_addr *addr)
 
 int rtnl_addr_set_peer(struct rtnl_addr *addr, struct nl_addr *peer)
 {
-	return __assign_addr(addr, &addr->a_peer, peer, ADDR_ATTR_PEER);
+	int err;
 
-	addr->a_prefixlen = nl_addr_get_prefixlen(addr->a_peer);
-	addr->ce_mask |= ADDR_ATTR_PREFIXLEN;
+	if (peer && peer->a_family != AF_INET)
+		return -NLE_AF_NOSUPPORT;
+
+	err = __assign_addr(addr, &addr->a_peer, peer, ADDR_ATTR_PEER);
+	if (err < 0)
+		return err;
+
+	rtnl_addr_set_prefixlen(addr, peer ? nl_addr_get_prefixlen(peer) : 0);
 
 	return 0;
 }
@@ -827,6 +961,9 @@ struct nl_addr *rtnl_addr_get_peer(struct rtnl_addr *addr)
 
 int rtnl_addr_set_broadcast(struct rtnl_addr *addr, struct nl_addr *bcast)
 {
+	if (bcast && bcast->a_family != AF_INET)
+		return -NLE_AF_NOSUPPORT;
+
 	return __assign_addr(addr, &addr->a_bcast, bcast, ADDR_ATTR_BROADCAST);
 }
 
@@ -837,6 +974,9 @@ struct nl_addr *rtnl_addr_get_broadcast(struct rtnl_addr *addr)
 
 int rtnl_addr_set_multicast(struct rtnl_addr *addr, struct nl_addr *multicast)
 {
+	if (multicast && multicast->a_family != AF_INET6)
+		return -NLE_AF_NOSUPPORT;
+
 	return __assign_addr(addr, &addr->a_multicast, multicast,
 			     ADDR_ATTR_MULTICAST);
 }
@@ -848,6 +988,9 @@ struct nl_addr *rtnl_addr_get_multicast(struct rtnl_addr *addr)
 
 int rtnl_addr_set_anycast(struct rtnl_addr *addr, struct nl_addr *anycast)
 {
+	if (anycast && anycast->a_family != AF_INET6)
+		return -NLE_AF_NOSUPPORT;
+
 	return __assign_addr(addr, &addr->a_anycast, anycast,
 			     ADDR_ATTR_ANYCAST);
 }

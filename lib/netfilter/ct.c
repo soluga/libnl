@@ -23,7 +23,7 @@
 #include <sys/types.h>
 #include <linux/netfilter/nfnetlink_conntrack.h>
 
-#include <netlink-local.h>
+#include <netlink-private/netlink.h>
 #include <netlink/attr.h>
 #include <netlink/netfilter/nfnl.h>
 #include <netlink/netfilter/ct.h>
@@ -38,7 +38,7 @@ static uint64_t ntohll(uint64_t x)
 #elif __BYTE_ORDER == __LITTLE_ENDIAN
 static uint64_t ntohll(uint64_t x)
 {
-	return __bswap_64(x);
+	return bswap_64(x);
 }
 #endif
 

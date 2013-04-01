@@ -9,7 +9,7 @@
  * Copyright (c) 2009 Patrick McHardy <kaber@trash.net>
  */
 
-#include <netlink-local.h>
+#include <netlink-private/netlink.h>
 #include <netlink/netlink.h>
 #include <netlink/cache.h>
 #include <netlink/utils.h>

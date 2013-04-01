@@ -9,11 +9,11 @@
  * Copyright (c) 2010 Thomas Graf <tgraf@suug.ch>
  */
 
-#include <netlink-local.h>
+#include <netlink-private/netlink.h>
 #include <netlink/netlink.h>
 #include <netlink/attr.h>
 #include <netlink/route/rtnl.h>
-#include <netlink/route/link/api.h>
+#include <netlink-private/route/link/api.h>
 
 struct inet6_data
 {
@@ -71,23 +71,33 @@ static int inet6_parse_protinfo(struct rtnl_link *link, struct nlattr *attr,
 	if (tb[IFLA_INET6_CONF])
 		nla_memcpy(&i6->i6_conf, tb[IFLA_INET6_CONF],
 			   sizeof(i6->i6_conf));
-
+ 
+	/*
+	 * Due to 32bit data alignment, these addresses must be copied to an
+	 * aligned location prior to access.
+	 */
 	if (tb[IFLA_INET6_STATS]) {
-		uint64_t *cnt = nla_data(tb[IFLA_INET6_STATS]);
+		unsigned char *cnt = nla_data(tb[IFLA_INET6_STATS]);
+		uint64_t stat;
 		int i;
 
-		for (i = 1; i < __IPSTATS_MIB_MAX; i++)
+		for (i = 1; i < __IPSTATS_MIB_MAX; i++) {
+			memcpy(&stat, &cnt[i * sizeof(stat)], sizeof(stat));
 			rtnl_link_set_stat(link, RTNL_LINK_IP6_INPKTS + i - 1,
-					   cnt[i]);
+					   stat);
+		}
 	}
 
 	if (tb[IFLA_INET6_ICMP6STATS]) {
-		uint64_t *cnt = nla_data(tb[IFLA_INET6_ICMP6STATS]);
+		unsigned char *cnt = nla_data(tb[IFLA_INET6_ICMP6STATS]);
+		uint64_t stat;
 		int i;
 
-		for (i = 1; i < __ICMP6_MIB_MAX; i++)
+		for (i = 1; i < __ICMP6_MIB_MAX; i++) {
+			memcpy(&stat, &cnt[i * sizeof(stat)], sizeof(stat));
 			rtnl_link_set_stat(link, RTNL_LINK_ICMP6_INMSGS + i - 1,
-					   cnt[i]);
+					   stat);
+		}
 	}
 
 	return 0;
@@ -232,78 +242,78 @@ static void inet6_dump_stats(struct rtnl_link *link,
 
 	nl_dump(p, "    IPv6:       InPkts           InOctets     "
 		   "    InDiscards         InDelivers\n");
-	nl_dump(p, "    %18llu ", link->l_stats[RTNL_LINK_IP6_INPKTS]);
+	nl_dump(p, "    %18" PRIu64 " ", link->l_stats[RTNL_LINK_IP6_INPKTS]);
 
 	octets = nl_cancel_down_bytes(link->l_stats[RTNL_LINK_IP6_INOCTETS],
 				      &octetsUnit);
 	if (octets)
 		nl_dump(p, "%14.2f %3s ", octets, octetsUnit);
 	else
-		nl_dump(p, "%16llu B ", 0);
+		nl_dump(p, "%16" PRIu64 " B ", 0);
 	
-	nl_dump(p, "%18llu %18llu\n",
+	nl_dump(p, "%18" PRIu64 " %18" PRIu64 "\n",
 		link->l_stats[RTNL_LINK_IP6_INDISCARDS],
 		link->l_stats[RTNL_LINK_IP6_INDELIVERS]);
 
 	nl_dump(p, "               OutPkts          OutOctets     "
 		   "   OutDiscards        OutForwards\n");
 
-	nl_dump(p, "    %18llu ", link->l_stats[RTNL_LINK_IP6_OUTPKTS]);
+	nl_dump(p, "    %18" PRIu64 " ", link->l_stats[RTNL_LINK_IP6_OUTPKTS]);
 
 	octets = nl_cancel_down_bytes(link->l_stats[RTNL_LINK_IP6_OUTOCTETS],
 				      &octetsUnit);
 	if (octets)
 		nl_dump(p, "%14.2f %3s ", octets, octetsUnit);
 	else
-		nl_dump(p, "%16llu B ", 0);
+		nl_dump(p, "%16" PRIu64 " B ", 0);
 
-	nl_dump(p, "%18llu %18llu\n",
+	nl_dump(p, "%18" PRIu64 " %18" PRIu64 "\n",
 		link->l_stats[RTNL_LINK_IP6_OUTDISCARDS],
 		link->l_stats[RTNL_LINK_IP6_OUTFORWDATAGRAMS]);
 
 	nl_dump(p, "           InMcastPkts      InMcastOctets     "
 		   "   InBcastPkts     InBcastOctests\n");
 
-	nl_dump(p, "    %18llu ", link->l_stats[RTNL_LINK_IP6_INMCASTPKTS]);
+	nl_dump(p, "    %18" PRIu64 " ", link->l_stats[RTNL_LINK_IP6_INMCASTPKTS]);
 
 	octets = nl_cancel_down_bytes(link->l_stats[RTNL_LINK_IP6_INMCASTOCTETS],
 				      &octetsUnit);
 	if (octets)
 		nl_dump(p, "%14.2f %3s ", octets, octetsUnit);
 	else
-		nl_dump(p, "%16llu B ", 0);
+		nl_dump(p, "%16" PRIu64 " B ", 0);
 
-	nl_dump(p, "%18llu ", link->l_stats[RTNL_LINK_IP6_INBCASTPKTS]);
+	nl_dump(p, "%18" PRIu64 " ", link->l_stats[RTNL_LINK_IP6_INBCASTPKTS]);
 	octets = nl_cancel_down_bytes(link->l_stats[RTNL_LINK_IP6_INBCASTOCTETS],
 				      &octetsUnit);
 	if (octets)
 		nl_dump(p, "%14.2f %3s\n", octets, octetsUnit);
 	else
-		nl_dump(p, "%16llu B\n", 0);
+		nl_dump(p, "%16" PRIu64 " B\n", 0);
 
 	nl_dump(p, "          OutMcastPkts     OutMcastOctets     "
 		   "  OutBcastPkts    OutBcastOctests\n");
 
-	nl_dump(p, "    %18llu ", link->l_stats[RTNL_LINK_IP6_OUTMCASTPKTS]);
+	nl_dump(p, "    %18" PRIu64 " ", link->l_stats[RTNL_LINK_IP6_OUTMCASTPKTS]);
 
 	octets = nl_cancel_down_bytes(link->l_stats[RTNL_LINK_IP6_OUTMCASTOCTETS],
 				      &octetsUnit);
 	if (octets)
 		nl_dump(p, "%14.2f %3s ", octets, octetsUnit);
 	else
-		nl_dump(p, "%16llu B ", 0);
+		nl_dump(p, "%16" PRIu64 " B ", 0);
 
-	nl_dump(p, "%18llu ", link->l_stats[RTNL_LINK_IP6_OUTBCASTPKTS]);
+	nl_dump(p, "%18" PRIu64 " ", link->l_stats[RTNL_LINK_IP6_OUTBCASTPKTS]);
 	octets = nl_cancel_down_bytes(link->l_stats[RTNL_LINK_IP6_OUTBCASTOCTETS],
 				      &octetsUnit);
 	if (octets)
 		nl_dump(p, "%14.2f %3s\n", octets, octetsUnit);
 	else
-		nl_dump(p, "%16llu B\n", 0);
+		nl_dump(p, "%16" PRIu64 " B\n", 0);
 
 	nl_dump(p, "              ReasmOKs         ReasmFails     "
 		   "    ReasmReqds       ReasmTimeout\n");
-	nl_dump(p, "    %18llu %18llu %18llu %18llu\n",
+	nl_dump(p, "    %18" PRIu64 " %18" PRIu64 " %18" PRIu64 " %18" PRIu64 "\n",
 		link->l_stats[RTNL_LINK_IP6_REASMOKS],
 		link->l_stats[RTNL_LINK_IP6_REASMFAILS],
 		link->l_stats[RTNL_LINK_IP6_REASMREQDS],
@@ -311,14 +321,14 @@ static void inet6_dump_stats(struct rtnl_link *link,
 
 	nl_dump(p, "               FragOKs          FragFails    "
 		   "    FragCreates\n");
-	nl_dump(p, "    %18llu %18llu %18llu\n",
+	nl_dump(p, "    %18" PRIu64 " %18" PRIu64 " %18" PRIu64 "\n",
 		link->l_stats[RTNL_LINK_IP6_FRAGOKS],
 		link->l_stats[RTNL_LINK_IP6_FRAGFAILS],
 		link->l_stats[RTNL_LINK_IP6_FRAGCREATES]);
 
 	nl_dump(p, "           InHdrErrors      InTooBigErrors   "
 		   "     InNoRoutes       InAddrErrors\n");
-	nl_dump(p, "    %18llu %18llu %18llu %18llu\n",
+	nl_dump(p, "    %18" PRIu64 " %18" PRIu64 " %18" PRIu64 " %18" PRIu64 "\n",
 		link->l_stats[RTNL_LINK_IP6_INHDRERRORS],
 		link->l_stats[RTNL_LINK_IP6_INTOOBIGERRORS],
 		link->l_stats[RTNL_LINK_IP6_INNOROUTES],
@@ -326,14 +336,14 @@ static void inet6_dump_stats(struct rtnl_link *link,
 
 	nl_dump(p, "       InUnknownProtos     InTruncatedPkts   "
 		   "    OutNoRoutes\n");
-	nl_dump(p, "    %18llu %18llu %18llu\n",
+	nl_dump(p, "    %18" PRIu64 " %18" PRIu64 " %18" PRIu64 "\n",
 		link->l_stats[RTNL_LINK_IP6_INUNKNOWNPROTOS],
 		link->l_stats[RTNL_LINK_IP6_INTRUNCATEDPKTS],
 		link->l_stats[RTNL_LINK_IP6_OUTNOROUTES]);
 
 	nl_dump(p, "    ICMPv6:     InMsgs           InErrors        "
 		   "    OutMsgs          OutErrors\n");
-	nl_dump(p, "    %18llu %18llu %18llu %18llu\n",
+	nl_dump(p, "    %18" PRIu64 " %18" PRIu64 " %18" PRIu64 " %18" PRIu64 "\n",
 		link->l_stats[RTNL_LINK_ICMP6_INMSGS],
 		link->l_stats[RTNL_LINK_ICMP6_INERRORS],
 		link->l_stats[RTNL_LINK_ICMP6_OUTMSGS],

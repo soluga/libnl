@@ -1,5 +1,8 @@
 genl-ctrl-list
 nf-ct-list
+nf-exp-list
+nf-exp-add
+nf-exp-delete
 nf-log
 nf-monitor
 nl-addr-add
@@ -46,3 +49,5 @@ dect-cluster-list
 dect-llme-scan
 nl-classid-lookup
 nl-pktloc-lookup
+nl-link-enslave
+nl-link-release

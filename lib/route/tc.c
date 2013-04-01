@@ -15,14 +15,14 @@
  * @{
  */
 
-#include <netlink-local.h>
-#include <netlink-tc.h>
+#include <netlink-private/netlink.h>
+#include <netlink-private/tc.h>
 #include <netlink/netlink.h>
 #include <netlink/utils.h>
 #include <netlink/route/rtnl.h>
 #include <netlink/route/link.h>
 #include <netlink/route/tc.h>
-#include <netlink/route/tc-api.h>
+#include <netlink-private/route/tc-api.h>
 
 /** @cond SKIP */
 
@@ -60,6 +60,7 @@ static struct nla_policy tc_stats2_policy[TCA_STATS_MAX+1] = {
 
 int rtnl_tc_msg_parse(struct nlmsghdr *n, struct rtnl_tc *tc)
 {
+	struct nl_cache *link_cache;
 	struct rtnl_tc_ops *ops;
 	struct nlattr *tb[TCA_MAX + 1];
 	char kind[TCKINDSIZ];
@@ -173,6 +174,17 @@ compat_xstats:
 		err = ops->to_msg_parser(tc, data);
 		if (err < 0)
 			return err;
+	}
+
+	if ((link_cache = __nl_cache_mngt_require("route/link"))) {
+		struct rtnl_link *link;
+
+		if ((link = rtnl_link_get(link_cache, tc->tc_ifindex))) {
+			rtnl_tc_set_link(tc, link);
+
+			/* rtnl_tc_set_link incs refcnt */
+			rtnl_link_put(link);
+		}
 	}
 
 	return 0;
@@ -293,6 +305,32 @@ void rtnl_tc_set_link(struct rtnl_tc *tc, struct rtnl_link *link)
 }
 
 /**
+ * Get link of traffic control object
+ * @arg tc		traffic control object
+ *
+ * Returns the link of a traffic control object. The link is only
+ * returned if it has been set before via rtnl_tc_set_link() or
+ * if a link cache was available while parsing the tc object. This
+ * function may still return NULL even if an ifindex is assigned to
+ * the tc object. It will _not_ look up the link by itself.
+ *
+ * @note The returned link will have its reference counter incremented.
+ *       It is in the responsibility of the caller to return the
+ *       reference.
+ *
+ * @return link object or NULL if not set.
+ */
+struct rtnl_link *rtnl_tc_get_link(struct rtnl_tc *tc)
+{
+	if (tc->tc_link) {
+		nl_object_get(OBJ_CAST(tc->tc_link));
+		return tc->tc_link;
+	}
+
+	return NULL;
+}
+
+/**
  * Set the Maximum Transmission Unit (MTU) of traffic control object
  * @arg tc		traffic control object
  * @arg mtu		largest packet size expected
@@ -318,7 +356,7 @@ void rtnl_tc_set_mtu(struct rtnl_tc *tc, uint32_t mtu)
  * Returns the MTU of a traffic control object which has been set via:
  * -# User specified value set via rtnl_tc_set_mtu()
  * -# Dervied from link set via rtnl_tc_set_link()
- * -# Fall back to default: ethernet = 1600
+ * -# Fall back to default: ethernet = 1500
  */
 uint32_t rtnl_tc_get_mtu(struct rtnl_tc *tc)
 {
@@ -327,7 +365,7 @@ uint32_t rtnl_tc_get_mtu(struct rtnl_tc *tc)
 	else if (tc->ce_mask & TCA_ATTR_LINK)
 		return tc->tc_link->l_mtu;
 	else
-		return 1600; /* default to ethernet */
+		return 1500; /* default to ethernet */
 }
 
 /**
@@ -672,7 +710,7 @@ int rtnl_tc_build_rate_table(struct rtnl_tc *tc, struct rtnl_ratespec *spec,
 
 	for (i = 0; i < RTNL_TC_RTABLE_SIZE; i++) {
 		size = adjust_size((i + 1) << cell_log, spec->rs_mpu, linktype);
-		dst[i] = rtnl_tc_calc_txtime(size, spec->rs_rate);
+		dst[i] = nl_us2ticks(rtnl_tc_calc_txtime(size, spec->rs_rate));
 	}
 
 	spec->rs_cell_align = -1;
@@ -712,10 +750,8 @@ int rtnl_tc_clone(struct nl_object *dstobj, struct nl_object *srcobj)
 	struct rtnl_tc_ops *ops;
 
 	if (src->tc_link) {
-		dst->tc_link = (struct rtnl_link *)
-					nl_object_clone(OBJ_CAST(src->tc_link));
-		if (!dst->tc_link)
-			return -NLE_NOMEM;
+		nl_object_get(OBJ_CAST(src->tc_link));
+		dst->tc_link = src->tc_link;
 	}
 
 	if (src->tc_opts) {
@@ -786,7 +822,7 @@ void rtnl_tc_dump_line(struct nl_object *obj, struct nl_dump_params *p)
 
 	nl_dump(p, "%s ", tc->tc_kind);
 
-	if ((link_cache = nl_cache_mngt_require("route/link"))) {
+	if ((link_cache = nl_cache_mngt_require_safe("route/link"))) {
 		nl_dump(p, "dev %s ",
 			rtnl_link_i2name(link_cache, tc->tc_ifindex,
 					 buf, sizeof(buf)));
@@ -801,6 +837,9 @@ void rtnl_tc_dump_line(struct nl_object *obj, struct nl_dump_params *p)
 
 	tc_dump(tc, NL_DUMP_LINE, p);
 	nl_dump(p, "\n");
+
+	if (link_cache)
+		nl_cache_put(link_cache);
 }
 
 void rtnl_tc_dump_details(struct nl_object *obj, struct nl_dump_params *p)
@@ -950,6 +989,15 @@ void rtnl_tc_unregister(struct rtnl_tc_ops *ops)
 	nl_list_del(&ops->to_list);
 }
 
+/**
+ * Return pointer to private data of traffic control object
+ * @arg tc		traffic control object
+ *
+ * Allocates the private traffic control object data section
+ * as necessary and returns it.
+ *
+ * @return Pointer to private tc data or NULL if allocation failed.
+ */
 void *rtnl_tc_data(struct rtnl_tc *tc)
 {
 	if (!tc->tc_subdata) {
@@ -971,6 +1019,36 @@ void *rtnl_tc_data(struct rtnl_tc *tc)
 	}
 
 	return nl_data_get(tc->tc_subdata);
+}
+
+/**
+ * Check traffic control object type and return private data section 
+ * @arg tc		traffic control object
+ * @arg ops		expected traffic control object operations
+ *
+ * Checks whether the traffic control object matches the type
+ * specified with the traffic control object operations. If the
+ * type matches, the private tc object data is returned. If type
+ * mismatches, APPBUG() will print a application bug warning.
+ *
+ * @see rtnl_tc_data()
+ *
+ * @return Pointer to private tc data or NULL if type mismatches.
+ */
+void *rtnl_tc_data_check(struct rtnl_tc *tc, struct rtnl_tc_ops *ops)
+{
+	if (tc->tc_ops != ops) {
+		char buf[64];
+
+		snprintf(buf, sizeof(buf),
+			 "tc object %p used in %s context but is of type %s",
+			 tc, ops->to_kind, tc->tc_ops->to_kind);
+		APPBUG(buf);
+
+		return NULL;
+	}
+
+	return rtnl_tc_data(tc);
 }
 
 void rtnl_tc_type_register(struct rtnl_tc_type_ops *ops)

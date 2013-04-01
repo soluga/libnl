@@ -13,24 +13,19 @@
  * @ingroup core
  * @defgroup cb Callbacks/Customization
  *
- * @details
- * @par 1) Setting up a callback set
- * @code
- * // Allocate a callback set and initialize it to the verbose default set
- * struct nl_cb *cb = nl_cb_alloc(NL_CB_VERBOSE);
+ * Related sections in the development guide:
+ * - @core_doc{core_cb, Callback Configuration}
  *
- * // Modify the set to call my_func() for all valid messages
- * nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, my_func, NULL);
- *
- * // Set the error message handler to the verbose default implementation
- * // and direct it to print all errors to the given file descriptor.
- * FILE *file = fopen(...);
- * nl_cb_err(cb, NL_CB_VERBOSE, NULL, file);
- * @endcode
  * @{
+ *
+ * Header
+ * ------
+ * ~~~~{.c}
+ * #include <netlink/handlers.h>
+ * ~~~~
  */
 
-#include <netlink-local.h>
+#include <netlink-private/netlink.h>
 #include <netlink/netlink.h>
 #include <netlink/utils.h>
 #include <netlink/msg.h>
@@ -84,9 +79,10 @@ static int nl_error_handler_verbose(struct sockaddr_nl *who,
 				    struct nlmsgerr *e, void *arg)
 {
 	FILE *ofd = arg ? arg : stderr;
+	char buf[256];
 
 	fprintf(ofd, "-- Error received: %s\n-- Original message: ",
-		strerror(-e->error));
+		strerror_r(-e->error, buf, sizeof(buf)));
 	print_header_content(ofd, &e->msg);
 	fprintf(ofd, "\n");
 
