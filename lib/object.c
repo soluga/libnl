@@ -165,7 +165,12 @@ int nl_object_update(struct nl_object *dst, struct nl_object *src)
  */
 void nl_object_free(struct nl_object *obj)
 {
-	struct nl_object_ops *ops = obj_ops(obj);
+	struct nl_object_ops *ops;
+
+	if (!obj)
+		return;
+
+	ops = obj_ops(obj);
 
 	if (obj->ce_refcnt > 0)
 		NL_DBG(1, "Warning: Freeing object in use...\n");
@@ -316,8 +321,10 @@ int nl_object_identical(struct nl_object *a, struct nl_object *b)
 		if (req_attrs_a != req_attrs_b)
 			return 0;
 		req_attrs = req_attrs_a;
-	} else {
+	} else if (ops->oo_id_attrs) {
 		req_attrs = ops->oo_id_attrs;
+	} else {
+		req_attrs = 0xFFFFFFFF;
 	}
 	if (req_attrs == 0xFFFFFFFF)
 		req_attrs = a->ce_mask & b->ce_mask;

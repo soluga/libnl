@@ -295,12 +295,42 @@ static int __genl_ops_resolve(struct nl_cache *ctrl, struct genl_ops *ops)
 	family = genl_ctrl_search_by_name(ctrl, ops->o_name);
 	if (family != NULL) {
 		ops->o_id = genl_family_get_id(family);
+
+		if (ops->o_cache_ops)
+			ops->o_cache_ops->co_msgtypes[0].mt_id = ops->o_id;
+
 		genl_family_put(family);
 
 		return 0;
 	}
 
 	return -NLE_OBJ_NOTFOUND;
+}
+
+int genl_resolve_id(struct genl_ops *ops)
+{
+	struct nl_sock *sk;
+	int err = 0;
+
+	/* Check if resolved already */
+	if (ops->o_id != GENL_ID_GENERATE)
+		return 0;
+
+	if (!ops->o_name)
+		return -NLE_INVAL;
+
+	if (!(sk = nl_socket_alloc()))
+		return -NLE_NOMEM;
+
+	if ((err = genl_connect(sk)) < 0)
+		goto errout_free;
+
+	err = genl_ops_resolve(sk, ops);
+
+errout_free:
+	nl_socket_free(sk);
+
+	return err;
 }
 /** @endcond */
 

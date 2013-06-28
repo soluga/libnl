@@ -464,7 +464,7 @@ struct nlattr *nla_reserve(struct nl_msg *msg, int attrtype, int attrlen)
 	
 	tlen = NLMSG_ALIGN(msg->nm_nlh->nlmsg_len) + nla_total_size(attrlen);
 
-	if ((tlen + msg->nm_nlh->nlmsg_len) > msg->nm_size)
+	if (tlen > msg->nm_size)
 		return NULL;
 
 	nla = (struct nlattr *) nlmsg_tail(msg->nm_nlh);
@@ -899,7 +899,7 @@ int nla_parse_nested(struct nlattr *tb[], int maxtype, struct nlattr *nla,
  */
 int nla_is_nested(struct nlattr *attr)
 {
-	return !!(nla_type(attr) & NLA_F_NESTED);
+	return !!(attr->nla_type & NLA_F_NESTED);
 }
 
 /** @} */

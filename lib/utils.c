@@ -49,6 +49,7 @@
 int nl_debug = 0;
 
 /** @cond SKIP */
+#ifdef NL_DEBUG
 struct nl_dump_params nl_debug_dp = {
 	.dp_type = NL_DUMP_DETAILS,
 };
@@ -65,6 +66,7 @@ static void __init nl_debug_init(void)
 
 	nl_debug_dp.dp_fd = stderr;
 }
+#endif
 
 int __nl_read_num_str_file(const char *path, int (*cb)(long, const char *))
 {
@@ -683,7 +685,9 @@ static const struct trans_tbl llprotos[] = {
 	__ADD(ARPHRD_IEEE802_TR,tr)
 	__ADD(ARPHRD_IEEE80211,ieee802.11)
 	__ADD(ARPHRD_PHONET,phonet)
+#ifdef ARPHRD_CAIF
 	__ADD(ARPHRD_CAIF, caif)
+#endif
 #ifdef ARPHRD_IEEE80211_PRISM
 	__ADD(ARPHRD_IEEE80211_PRISM, ieee802.11_prism)
 #endif

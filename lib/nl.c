@@ -597,7 +597,7 @@ int nl_recv(struct nl_sock *sk, struct sockaddr_nl *nla,
 		flags |= MSG_PEEK | MSG_TRUNC;
 
 	if (page_size == 0)
-		page_size = getpagesize();
+		page_size = getpagesize() * 4;
 
 	iov.iov_len = sk->s_bufsize ? : page_size;
 	iov.iov_base = malloc(iov.iov_len);
@@ -626,11 +626,6 @@ retry:
 		if (errno == EINTR) {
 			NL_DBG(3, "recvmsg() returned EINTR, retrying\n");
 			goto retry;
-		}
-		if (errno == EAGAIN || errno == EWOULDBLOCK) {
-			NL_DBG(3, "recvmsg() returned EAGAIN||EWOULDBLOCK, aborting\n");
-			retval = 0;
-			goto abort;
 		}
 		retval = -nl_syserr2nlerr(errno);
 		goto abort;

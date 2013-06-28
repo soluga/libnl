@@ -13,7 +13,7 @@
 # copied from glib
 m4_define([libnl_major_version], [3])
 m4_define([libnl_minor_version], [2])
-m4_define([libnl_micro_version], [21])
+m4_define([libnl_micro_version], [22])
 
 
 # The following explanation may help to understand the above rules a bit
@@ -34,9 +34,9 @@ m4_define([libnl_micro_version], [21])
 # 3. Programs may need to be changed, recompiled, relinked in order to use
 #    the new version. Bump current, set revision and age to 0.
 
-m4_define([libnl_lt_current],    [216])
-m4_define([libnl_lt_revision],	 [1])
-m4_define([libnl_lt_age],        [16])
+m4_define([libnl_lt_current],    [217])
+m4_define([libnl_lt_revision],	 [0])
+m4_define([libnl_lt_age],        [17])
 
 m4_define([libnl_version],
 	  [libnl_major_version.libnl_minor_version.libnl_micro_version])
@@ -75,7 +75,12 @@ AC_CHECK_PROGS(YACC, 'bison -y')
 AC_C_CONST
 AC_C_INLINE
 
-AM_PATH_CHECK()
+PKG_CHECK_MODULES([CHECK], [check >= 0.9.0],
+	[enable_unit_tests="yes"],
+	[AC_MSG_WARN([*** Disabling building of unit tests])
+	 enable_unit_tests="no"])
+
+AM_CONDITIONAL([ENABLE_UNIT_TESTS], [test "$enable_unit_tests" = "yes"])
 
 AC_ARG_WITH([pkgconfigdir], AS_HELP_STRING([--with-pkgconfigdir=PATH],
 	[Path to the pkgconfig directory [[LIBDIR/pkgconfig]]]),
@@ -92,12 +97,21 @@ AC_ARG_ENABLE([pthreads],
 	[enable_pthreads="$enableval"], [enable_pthreads="yes"])
 AM_CONDITIONAL([DISABLE_PTHREADS], [test "$enable_pthreads" = "no"])
 
+AC_ARG_ENABLE([debug],
+	AS_HELP_STRING([--disable-debug], [Do not include debugging statements]),
+	[enable_debug="$enableval"], [enable_debug="yes"])
+AM_CONDITIONAL([ENABLE_DEBUG], [test "$enable_debug" = "no" ])
+
 AC_CHECK_LIB([m], [pow], [], AC_MSG_ERROR([libm is required]))
 
 if test "x$enable_pthreads" = "xno"; then
     AC_DEFINE([DISABLE_PTHREADS], [1], [Define to 1 to disable pthreads])
 else
     AC_CHECK_LIB([pthread], [pthread_mutex_lock], [], AC_MSG_ERROR([libpthread is required]))
+fi
+
+if test "x$enable_debug" = "xyes"; then
+    AC_DEFINE([NL_DEBUG], [1], [Define to 1 to enable debugging])
 fi
 
 AC_CONFIG_SUBDIRS([doc])
