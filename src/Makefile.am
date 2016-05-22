@@ -18,7 +18,6 @@ sbin_PROGRAMS = \
 	nl-class-add nl-class-list nl-class-delete \
 	nl-cls-add nl-cls-list nl-cls-delete \
 	nl-classid-lookup \
-	nl-pktloc-lookup \
 	nl-link-list
 
 noinst_PROGRAMS = \
