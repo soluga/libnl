@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	//nl_dect_llme_mac_info_set_pari(lmsg, pari);
+	nl_dect_llme_mac_info_set_pari(lmsg, pari);
 	if ((err = nl_dect_llme_request(sock, lmsg)) < 0)
 		nl_cli_fatal(err, "Unable to send request: %s", nl_geterror(err));
 
