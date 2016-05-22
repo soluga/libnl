@@ -100,7 +100,7 @@ nl_list_sockets_SOURCES = nl-list-sockets.c
 nl_util_addr_SOURCES = nl-util-addr.c
 
 nl_pktloc_lookup_SOURCES = nl-pktloc-lookup.c
-nl_pktloc_lookup_LDADD = -lnl-route
+nl_pktloc_lookup_LDADD = -lnl-route-3
 
 nl_classid_lookup_SOURCES = nl-classid-lookup.c
 
